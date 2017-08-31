@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2014, 2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2014, 2016-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -111,7 +111,7 @@ ol_tx_ll(ol_txrx_vdev_handle vdev, adf_nbuf_t msdu_list)
          * tx_send call.
          */
         next = adf_nbuf_next(msdu);
-        ol_tx_send(vdev->pdev, tx_desc, msdu);
+        ol_tx_send(vdev->pdev, tx_desc, msdu, vdev->vdev_id);
         msdu = next;
     }
     return NULL; /* all MSDUs were accepted */
@@ -242,7 +242,7 @@ ol_tx_vdev_pause_queue_append(
         DPTRACE(adf_dp_trace(msdu_list,
                 ADF_DP_TRACE_TXRX_QUEUE_PACKET_PTR_RECORD,
                 adf_nbuf_data_addr(msdu_list),
-                sizeof(adf_nbuf_data(msdu_list))));
+                sizeof(adf_nbuf_data(msdu_list)), ADF_TX));
 
         vdev->ll_pause.txq.depth++;
         if (!vdev->ll_pause.txq.head) {
@@ -514,7 +514,7 @@ ol_tx_non_std_ll(
          * downloaded to the target via the HTT tx descriptor.
          */
         htt_tx_desc_display(tx_desc->htt_tx_desc);
-        ol_tx_send(vdev->pdev, tx_desc, msdu);
+        ol_tx_send(vdev->pdev, tx_desc, msdu, vdev->vdev_id);
         msdu = next;
     }
     return NULL; /* all MSDUs were accepted */
@@ -665,8 +665,7 @@ ol_tx_hl_base(
         if (adf_os_atomic_read(&pdev->tx_queue.rsrc_cnt) >
                                         TXRX_HL_TX_DESC_HI_PRIO_RESERVED) {
             tx_desc = ol_tx_desc_hl(pdev, vdev, msdu, &tx_msdu_info);
-        } else if ((adf_nbuf_is_dhcp_pkt(msdu) == A_STATUS_OK)
-                          || (adf_nbuf_is_eapol_pkt(msdu) == A_STATUS_OK)) {
+        } else if (ADF_NBUF_GET_IS_DHCP(msdu) || ADF_NBUF_GET_IS_EAPOL(msdu)) {
             tx_desc = ol_tx_desc_hl(pdev, vdev, msdu, &tx_msdu_info);
             TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
                 "Provided tx descriptor from reserve pool for DHCP/EAPOL\n");
@@ -1275,7 +1274,7 @@ adf_nbuf_t ol_tx_reinject(
 
     htt_tx_desc_set_peer_id(tx_desc->htt_tx_desc, peer_id);
 
-    ol_tx_send(vdev->pdev, tx_desc, msdu);
+    ol_tx_send(vdev->pdev, tx_desc, msdu, vdev->vdev_id);
 
     return NULL;
 }

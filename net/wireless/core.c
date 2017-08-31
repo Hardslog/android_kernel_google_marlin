@@ -419,6 +419,9 @@ struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
 
 	rdev->wiphy.max_num_csa_counters = 1;
 
+	rdev->wiphy.max_sched_scan_plans = 1;
+	rdev->wiphy.max_sched_scan_plan_interval = U32_MAX;
+
 	return &rdev->wiphy;
 }
 EXPORT_SYMBOL(wiphy_new);
@@ -545,6 +548,13 @@ int wiphy_register(struct wiphy *wiphy)
 		     !rdev->ops->set_mac_acl)))
 		return -EINVAL;
 
+	/* assure only valid behaviours are flagged by driver
+	 * hence subtract 2 as bit 0 is invalid.
+	 */
+	if (WARN_ON(wiphy->bss_select_support &&
+		    (wiphy->bss_select_support & ~(BIT(__NL80211_BSS_SELECT_ATTR_AFTER_LAST) - 2))))
+		return -EINVAL;
+
 	if (wiphy->addresses)
 		memcpy(wiphy->perm_addr, wiphy->addresses[0].addr, ETH_ALEN);
 
@@ -657,6 +667,36 @@ int wiphy_register(struct wiphy *wiphy)
 		request.alpha2[1] = '9';
 
 		nl80211_send_reg_change_event(&request);
+	}
+
+	/* Check that nobody globally advertises any capabilities they do not
+	 * advertise on all possible interface types.
+	 */
+	if (wiphy->extended_capabilities_len &&
+	    wiphy->num_iftype_ext_capab &&
+	    wiphy->iftype_ext_capab) {
+		u8 supported_on_all, j;
+		const struct wiphy_iftype_ext_capab *capab;
+
+		capab = wiphy->iftype_ext_capab;
+		for (j = 0; j < wiphy->extended_capabilities_len; j++) {
+			if (capab[0].extended_capabilities_len > j)
+				supported_on_all =
+					capab[0].extended_capabilities[j];
+			else
+				supported_on_all = 0x00;
+			for (i = 1; i < wiphy->num_iftype_ext_capab; i++) {
+				if (j >= capab[i].extended_capabilities_len) {
+					supported_on_all = 0x00;
+					break;
+				}
+				supported_on_all &=
+					capab[i].extended_capabilities[j];
+			}
+			if (WARN_ON(wiphy->extended_capabilities[j] &
+				    ~supported_on_all))
+				break;
+		}
 	}
 
 	rdev->wiphy.registered = true;

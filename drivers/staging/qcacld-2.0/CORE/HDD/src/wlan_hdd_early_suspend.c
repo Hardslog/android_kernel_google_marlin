@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -52,7 +52,6 @@
 #include <vos_sched.h>
 #include <macInitApi.h>
 #include <wlan_qct_sys.h>
-#include <wlan_btc_svc.h>
 #include <wlan_nlink_common.h>
 #include <wlan_hdd_main.h>
 #include <wlan_hdd_assoc.h>
@@ -2328,6 +2327,10 @@ VOS_STATUS hdd_wlan_re_init(void *hif_sc)
    /* Register TM level change handler function to the platform */
    hddDevTmRegisterNotifyCallback(pHddCtx);
 
+   pHddCtx->last_scan_reject_session_id = 0xFF;
+   pHddCtx->last_scan_reject_reason = 0;
+   pHddCtx->last_scan_reject_timestamp = 0;
+
    pHddCtx->hdd_mcastbcast_filter_set = FALSE;
    pHddCtx->btCoexModeSet = false;
    hdd_register_mcast_bcast_filter(pHddCtx);
@@ -2355,6 +2358,8 @@ VOS_STATUS hdd_wlan_re_init(void *hif_sc)
                                wlan_hdd_cfg80211_extscan_callback);
 #endif /* FEATURE_WLAN_EXTSCAN */
    sme_set_rssi_threshold_breached_cb(pHddCtx->hHal, hdd_rssi_threshold_breached);
+   wlan_hdd_cfg80211_link_layer_stats_init(pHddCtx);
+   sme_bpf_offload_register_callback(pHddCtx->hHal, hdd_get_bpf_offload_cb);
 
 #ifdef WLAN_FEATURE_LPSS
    wlan_hdd_send_all_scan_intf_info(pHddCtx);
@@ -2382,7 +2387,6 @@ err_vosclose:
        /* Unregister the Net Device Notifier */
        unregister_netdevice_notifier(&hdd_netdev_notifier);
        /* Clean up HDD Nlink Service */
-       send_btc_nlink_msg(WLAN_MODULE_DOWN_IND, 0);
 #ifdef WLAN_KD_READY_NOTIFIER
        nl_srv_exit(pHddCtx->ptt_pid);
 #else
@@ -2410,8 +2414,6 @@ err_re_init:
    return -EPERM;
 
 success:
-   /* Trigger replay of BTC events */
-   send_btc_nlink_msg(WLAN_MODULE_DOWN_IND, 0);
    pHddCtx->isLogpInProgress = FALSE;
    hdd_ssr_timer_del();
    return VOS_STATUS_SUCCESS;

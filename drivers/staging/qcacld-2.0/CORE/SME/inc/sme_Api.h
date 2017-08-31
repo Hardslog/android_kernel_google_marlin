@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -50,7 +50,6 @@
 #include "vos_lock.h"
 #include "halTypes.h"
 #include "sirApi.h"
-#include "btcApi.h"
 #include "vos_nvitem.h"
 #include "p2p_Api.h"
 #include "smeInternal.h" 
@@ -264,6 +263,24 @@ struct sme_oem_capability {
 	uint32_t lci_capability:1;
 	uint32_t reserved1:30;
 	uint32_t reserved2;
+};
+
+/*
+ * struct sme_5g_pref_params : 5G preference params to be read from ini
+ * @rssi_boost_threshold_5g: RSSI threshold above which 5 GHz is favored
+ * @rssi_boost_factor_5g: Factor by which 5GHz RSSI is boosted
+ * @max_rssi_boost_5g: Maximum boost that can be applied to 5GHz RSSI
+ * @rssi_penalize_threshold_5g: RSSI threshold below which 5G is not favored
+ * @rssi_penalize_factor_5g: Factor by which 5GHz RSSI is penalized
+ * @max_rssi_penalize_5g: Maximum penalty that can be applied to 5G RSSI
+ */
+struct sme_5g_band_pref_params {
+	int8_t      rssi_boost_threshold_5g;
+	uint8_t     rssi_boost_factor_5g;
+	uint8_t     max_rssi_boost_5g;
+	int8_t      rssi_penalize_threshold_5g;
+	uint8_t     rssi_penalize_factor_5g;
+	uint8_t     max_rssi_penalize_5g;
 };
 
 /*-------------------------------------------------------------------------
@@ -1841,50 +1858,6 @@ eHalStatus sme_DHCPStopInd( tHalHandle hHal,
                             tANI_U8 device_mode,
                             tANI_U8 *macAddr,
                             tANI_U8 sessionId );
-
-/* ---------------------------------------------------------------------------
-    \fn sme_BtcSignalBtEvent
-    \brief  API to signal Bluetooth (BT) event to the WLAN driver. Based on the
-            BT event type and the current operating mode of Libra (full power,
-            BMPS, UAPSD etc), appropriate Bluetooth Coexistence (BTC) strategy
-            would be employed.
-    \param  hHal - The handle returned by macOpen.
-    \param  pBtcBtEvent -  Pointer to a caller allocated object of type tSmeBtEvent
-                           Caller owns the memory and is responsible for freeing it.
-    \return VOS_STATUS
-            VOS_STATUS_E_FAILURE  BT Event not passed to HAL. This can happen
-                                   if driver has not yet been initialized or if BTC
-                                   Events Layer has been disabled.
-            VOS_STATUS_SUCCESS    BT Event passed to HAL
-  ---------------------------------------------------------------------------*/
-VOS_STATUS sme_BtcSignalBtEvent (tHalHandle hHal, tpSmeBtEvent pBtcBtEvent);
-
-/* ---------------------------------------------------------------------------
-    \fn sme_BtcSetConfig
-    \brief  API to change the current Bluetooth Coexistence (BTC) configuration
-            This function should be invoked only after CFG download has completed.
-            Calling it after sme_HDDReadyInd is recommended.
-    \param  hHal - The handle returned by macOpen.
-    \param  pSmeBtcConfig - Pointer to a caller allocated object of type
-                            tSmeBtcConfig. Caller owns the memory and is responsible
-                            for freeing it.
-    \return VOS_STATUS
-            VOS_STATUS_E_FAILURE  Config not passed to HAL.
-            VOS_STATUS_SUCCESS  Config passed to HAL
-  ---------------------------------------------------------------------------*/
-VOS_STATUS sme_BtcSetConfig (tHalHandle hHal, tpSmeBtcConfig pSmeBtcConfig);
-
-/* ---------------------------------------------------------------------------
-    \fn sme_BtcGetConfig
-    \brief  API to retrieve the current Bluetooth Coexistence (BTC) configuration
-    \param  hHal - The handle returned by macOpen.
-    \param  pSmeBtcConfig - Pointer to a caller allocated object of type tSmeBtcConfig.
-                            Caller owns the memory and is responsible for freeing it.
-    \return VOS_STATUS
-            VOS_STATUS_E_FAILURE - failure
-            VOS_STATUS_SUCCESS  success
-  ---------------------------------------------------------------------------*/
-VOS_STATUS sme_BtcGetConfig (tHalHandle hHal, tpSmeBtcConfig pSmeBtcConfig);
 
 /* ---------------------------------------------------------------------------
     \fn sme_SetCfgPrivacy
@@ -4574,4 +4547,45 @@ eHalStatus sme_remove_bssid_from_scan_list(tHalHandle hal,
 eHalStatus sme_register_p2p_ack_ind_callback(tHalHandle hal,
                                        sir_p2p_ack_ind_callback callback);
 void sme_set_allowed_action_frames(tHalHandle hal, uint32_t bitmap0);
+void sme_set_5g_band_pref(tHalHandle hal_handle,
+                                struct sme_5g_band_pref_params *pref_params);
+
+/**
+ * sme_set_random_mac() - Set random mac address filter
+ * @hal: hal handle for getting global mac struct
+ * @callback: callback to be invoked for response from firmware
+ * @session_id: interface id
+ * @random_mac: random mac address to be set
+ * @context: parameter to callback
+ *
+ * This function is used to set random mac address filter for action frames
+ * which are send with the same address, callback is invoked when corresponding
+ * event from firmware has come.
+ *
+ * Return: eHalStatus enumeration.
+ */
+eHalStatus sme_set_random_mac(tHalHandle hal,
+			      action_frame_random_filter_callback callback,
+			      uint32_t session_id, uint8_t *random_mac,
+			      void *context);
+
+/**
+ * sme_clear_random_mac() - clear random mac address filter
+ * @hal: HAL handle
+ * @session_id: interface id
+ * @random_mac: random mac address to be cleared
+ *
+ * This function is used to clear the random mac address filters
+ * which are set with sme_set_random_mac
+ *
+ * Return: eHalStatus enumeration.
+ */
+eHalStatus sme_clear_random_mac(tHalHandle hal, uint32_t session_id,
+				uint8_t *random_mac);
+
+#ifdef WLAN_POWER_DEBUGFS
+eHalStatus sme_power_debug_stats_req(tHalHandle hal, void (*callback_fn)
+			(struct power_stats_response *response,
+			void *context), void *power_stats_context);
+#endif
 #endif //#if !defined( __SME_API_H )

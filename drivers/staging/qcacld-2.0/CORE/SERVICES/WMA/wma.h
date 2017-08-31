@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -614,7 +614,7 @@ struct wma_txrx_node {
 
 	uint8_t wep_default_key_idx;
 	bool is_vdev_valid;
-
+	struct action_frame_random_filter *action_frame_filter;
 };
 
 #if defined(QCA_WIFI_FTM)
@@ -813,6 +813,13 @@ typedef struct wma_handle {
 	vos_wake_lock_t extscan_wake_lock;
 #endif
 	vos_wake_lock_t wow_wake_lock;
+	vos_wake_lock_t wow_auth_req_wl;
+	vos_wake_lock_t wow_assoc_req_wl;
+	vos_wake_lock_t wow_deauth_rec_wl;
+	vos_wake_lock_t wow_disassoc_rec_wl;
+	vos_wake_lock_t wow_ap_assoc_lost_wl;
+	vos_wake_lock_t wow_auto_shutdown_wl;
+
 	int wow_nack;
 	u_int32_t ap_client_cnt;
 	adf_os_atomic_t is_wow_bus_suspended;
@@ -887,6 +894,7 @@ typedef struct wma_handle {
 	uint32_t wow_ipv6_mcast_na_stats;
 	uint32_t wow_icmpv4_count;
 	uint32_t wow_icmpv6_count;
+	uint32_t wow_oem_response_wake_up_count;
 	uint32_t wow_wakeup_enable_mask;
 	uint32_t wow_wakeup_disable_mask;
 	uint16_t max_mgmt_tx_fail_count;
@@ -1435,6 +1443,8 @@ VOS_STATUS wma_send_snr_request(tp_wma_handle wma_handle, void *pGetRssiReq,
 #define WMA_DISASSOC_RECV_WAKE_LOCK_DURATION	(5 * 1000) /* in msec */
 #ifdef FEATURE_WLAN_AUTO_SHUTDOWN
 #define WMA_AUTO_SHUTDOWN_WAKE_LOCK_DURATION    (5 * 1000) /* in msec */
+#else
+#define WMA_AUTO_SHUTDOWN_WAKE_LOCK_DURATION 0
 #endif
 #define WMA_BMISS_EVENT_WAKE_LOCK_DURATION      (4 * 1000) /* in msec */
 

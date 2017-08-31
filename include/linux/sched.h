@@ -774,6 +774,7 @@ struct user_struct {
 #endif
 	unsigned long locked_shm; /* How many pages of mlocked shm ? */
 	unsigned long unix_inflight;	/* How many files in flight in unix sockets */
+	atomic_long_t pipe_bufs;  /* how many pages are allocated in pipe buffers */
 
 #ifdef CONFIG_KEYS
 	struct key *uid_keyring;	/* UID specific keyring */
@@ -1049,6 +1050,32 @@ typedef int (*sched_domain_flags_f)(void);
 typedef
 const struct sched_group_energy * const(*sched_domain_energy_f)(int cpu);
 
+struct energy_env {
+	struct sched_group	*sg_top;
+	struct sched_group	*sg_cap;
+	struct sched_group 	*sg;
+
+	int			src_cpu;
+	int			dst_cpu;
+	int			util_delta;
+	struct task_struct	*task;
+
+	int			cap_idx;
+	int			payoff;
+
+	int nrg_delta;
+	int prf_delta;
+	struct {
+		unsigned int energy;
+		unsigned int capacity;
+		unsigned int utilization;
+
+		int speedup_idx;
+		int delay_idx;
+		int perf_idx;
+	} before, after;
+};
+
 #define SDTL_OVERLAP	0x01
 
 struct sd_data {
@@ -1245,6 +1272,8 @@ struct sched_rt_entity {
 	unsigned long timeout;
 	unsigned long watchdog_stamp;
 	unsigned int time_slice;
+	bool schedtune_enqueued;
+	struct hrtimer schedtune_timer;
 
 	struct sched_rt_entity *back;
 #ifdef CONFIG_RT_GROUP_SCHED
@@ -1468,6 +1497,8 @@ struct task_struct {
 
 	cputime_t utime, stime, utimescaled, stimescaled;
 	cputime_t gtime;
+	atomic64_t *time_in_state;
+	unsigned int max_states;
 	unsigned long long cpu_power;
 #ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
 	struct cputime prev_cputime;
@@ -3105,6 +3136,11 @@ static inline void inc_syscw(struct task_struct *tsk)
 {
 	tsk->ioac.syscw++;
 }
+
+static inline void inc_syscfs(struct task_struct *tsk)
+{
+	tsk->ioac.syscfs++;
+}
 #else
 static inline void add_rchar(struct task_struct *tsk, ssize_t amt)
 {
@@ -3119,6 +3155,9 @@ static inline void inc_syscr(struct task_struct *tsk)
 }
 
 static inline void inc_syscw(struct task_struct *tsk)
+{
+}
+static inline void inc_syscfs(struct task_struct *tsk)
 {
 }
 #endif

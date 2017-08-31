@@ -1233,9 +1233,9 @@ static inline int ext4_match(struct ext4_filename *fname,
 	if (unlikely(!name)) {
 		if (fname->usr_fname->name[0] == '_') {
 			int ret;
-			if (de->name_len < 16)
+			if (de->name_len <= 32)
 				return 0;
-			ret = memcmp(de->name + de->name_len - 16,
+			ret = memcmp(de->name + ((de->name_len - 17) & ~15),
 				     fname->crypto_buf.name + 8, 16);
 			return (ret == 0) ? 1 : 0;
 		}
@@ -2812,7 +2812,7 @@ int ext4_orphan_add(handle_t *handle, struct inode *inode)
 			 * list entries can cause panics at unmount time.
 			 */
 			mutex_lock(&sbi->s_orphan_lock);
-			list_del(&EXT4_I(inode)->i_orphan);
+			list_del_init(&EXT4_I(inode)->i_orphan);
 			mutex_unlock(&sbi->s_orphan_lock);
 		}
 	}

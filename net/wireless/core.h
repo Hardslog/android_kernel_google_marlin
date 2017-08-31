@@ -125,6 +125,7 @@ struct cfg80211_internal_bss {
 	struct list_head list;
 	struct list_head hidden_list;
 	struct rb_node rbn;
+	u64 ts_boottime;
 	unsigned long ts;
 	unsigned long refcount;
 	atomic_t hold;
@@ -202,7 +203,7 @@ struct cfg80211_event {
 			size_t req_ie_len;
 			size_t resp_ie_len;
 			struct cfg80211_bss *bss;
-			u16 status;
+			int status; /* -1 = failed; 0..65535 = status code */
 		} cr;
 		struct {
 			const u8 *req_ie;
@@ -215,6 +216,7 @@ struct cfg80211_event {
 			const u8 *ie;
 			size_t ie_len;
 			u16 reason;
+			bool locally_generated;
 		} dc;
 		struct {
 			u8 bssid[ETH_ALEN];
@@ -348,7 +350,7 @@ int cfg80211_connect(struct cfg80211_registered_device *rdev,
 void __cfg80211_connect_result(struct net_device *dev, const u8 *bssid,
 			       const u8 *req_ie, size_t req_ie_len,
 			       const u8 *resp_ie, size_t resp_ie_len,
-			       u16 status, bool wextev,
+			       int status, bool wextev,
 			       struct cfg80211_bss *bss);
 void __cfg80211_disconnected(struct net_device *dev, const u8 *ie,
 			     size_t ie_len, u16 reason, bool from_ap);

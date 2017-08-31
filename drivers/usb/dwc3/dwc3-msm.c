@@ -3188,17 +3188,6 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		}
 	}
 
-	mdwc->uc.notify_attached_source = dwc3_msm_notify_attached_source;
-	mdwc->uc.pd_vbus_ctrl = dwc3_pd_vbus_ctrl;
-	mdwc->uc.vbus_boost_enabled = dwc3_vbus_boost_enabled;
-
-	ret = usb_controller_register(&pdev->dev, &mdwc->uc);
-	if (ret < 0) {
-		dev_err(&pdev->dev,
-				"%s:usb_controller_register usb failed\n",
-					__func__);
-	}
-
 	ret = of_platform_populate(node, NULL, NULL, &pdev->dev);
 	if (ret) {
 		dev_err(&pdev->dev,
@@ -3244,6 +3233,18 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	dwc = platform_get_drvdata(mdwc->dwc3);
 	if (!dwc) {
 		dev_err(&pdev->dev, "Failed to get dwc3 device\n");
+		goto put_dwc3;
+	}
+
+	mdwc->uc.notify_attached_source = dwc3_msm_notify_attached_source;
+	mdwc->uc.pd_vbus_ctrl = dwc3_pd_vbus_ctrl;
+	mdwc->uc.vbus_boost_enabled = dwc3_vbus_boost_enabled;
+
+	ret = usb_controller_register(&pdev->dev, &mdwc->uc);
+	if (ret < 0) {
+		dev_err(&pdev->dev,
+			"%s:usb_controller_register usb failed\n",
+			__func__);
 		goto put_dwc3;
 	}
 
@@ -3826,7 +3827,8 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 			dev_dbg(mdwc->dev, "!id\n");
 			mdwc->otg_state = OTG_STATE_A_IDLE;
 			work = 1;
-			mdwc->chg_type = DWC3_INVALID_CHARGER;
+			if (!test_bit(B_SESS_VLD, &mdwc->inputs))
+				mdwc->chg_type = DWC3_INVALID_CHARGER;
 		} else if (test_bit(B_SESS_VLD, &mdwc->inputs)) {
 			dev_dbg(mdwc->dev, "b_sess_vld\n");
 			pr_info("[USB] b_sess_vld, chg_type=%d, PolicyIsDFP=%d, dwc3_vbus_boost=%d\n",
@@ -3913,7 +3915,8 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 			pm_runtime_put_sync(mdwc->dev);
 			dbg_event(0xFF, "BPER psync",
 				atomic_read(&mdwc->dev->power.usage_count));
-			mdwc->chg_type = DWC3_INVALID_CHARGER;
+			if (!test_bit(B_SESS_VLD, &mdwc->inputs))
+				mdwc->chg_type = DWC3_INVALID_CHARGER;
 			work = 1;
 		} else if (test_bit(B_SUSPEND, &mdwc->inputs) &&
 			test_bit(B_SESS_VLD, &mdwc->inputs)) {

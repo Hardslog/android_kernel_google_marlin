@@ -23,6 +23,7 @@
 #include <linux/swap.h>
 #include <linux/init.h>
 #include <linux/bootmem.h>
+#include <linux/cache.h>
 #include <linux/mman.h>
 #include <linux/nodemask.h>
 #include <linux/initrd.h>
@@ -43,7 +44,7 @@
 
 #include "mm.h"
 
-phys_addr_t memstart_addr __read_mostly = 0;
+phys_addr_t memstart_addr __ro_after_init = 0;
 
 #ifdef CONFIG_BLK_DEV_INITRD
 static int __init early_initrd(char *p)
@@ -68,7 +69,7 @@ early_param("initrd", early_initrd);
  * currently assumes that for memory starting above 4G, 32-bit devices will
  * use a DMA offset.
  */
-static phys_addr_t max_zone_dma_phys(void)
+static phys_addr_t __init max_zone_dma_phys(void)
 {
 	phys_addr_t offset = memblock_start_of_DRAM() & GENMASK_ULL(63, 32);
 	return min(offset + (1ULL << 32), memblock_end_of_DRAM());
@@ -124,11 +125,11 @@ EXPORT_SYMBOL(pfn_valid);
 #endif
 
 #ifndef CONFIG_SPARSEMEM
-static void arm64_memory_present(void)
+static void __init arm64_memory_present(void)
 {
 }
 #else
-static void arm64_memory_present(void)
+static void __init arm64_memory_present(void)
 {
 	struct memblock_region *reg;
 

@@ -310,6 +310,14 @@ typedef struct tagCsrScanRequest
     eCsrRequestType requestType;    //11d scan or full scan
     tANI_BOOLEAN p2pSearch;
     tANI_BOOLEAN skipDfsChnlInP2pSearch;
+
+    uint32_t enable_scan_randomization;
+    uint8_t mac_addr[VOS_MAC_ADDR_SIZE];
+    uint8_t mac_addr_mask[VOS_MAC_ADDR_SIZE];
+    bool ie_whitelist;
+    uint32_t probe_req_ie_bitmap[PROBE_REQ_BITMAP_LEN];
+    uint32_t num_vendor_oui;
+    struct vendor_oui *voui;
 }tCsrScanRequest;
 
 typedef struct tagCsrBGScanRequest
@@ -643,13 +651,12 @@ typedef enum
     eCSR_ROAM_RESULT_DFS_CHANSW_UPDATE_FAILURE,
     eCSR_ROAM_EXT_CHG_CHNL_UPDATE_IND,
 
-    eCSR_ROAM_RESULT_NDP_CREATE_RSP,
-    eCSR_ROAM_RESULT_NDP_DELETE_RSP,
+    eCSR_ROAM_RESULT_NDI_CREATE_RSP,
+    eCSR_ROAM_RESULT_NDI_DELETE_RSP,
     eCSR_ROAM_RESULT_NDP_INITIATOR_RSP,
     eCSR_ROAM_RESULT_NDP_NEW_PEER_IND,
     eCSR_ROAM_RESULT_NDP_CONFIRM_IND,
     eCSR_ROAM_RESULT_NDP_INDICATION,
-    eCSR_ROAM_RESULT_NDP_SCHED_UPDATE_RSP,
     eCSR_ROAM_RESULT_NDP_RESPONDER_RSP,
     eCSR_ROAM_RESULT_NDP_END_RSP,
     eCSR_ROAM_RESULT_NDP_PEER_DEPARTED_IND,
@@ -1188,8 +1195,6 @@ typedef struct tagCsrConfigParam
     tANI_U32  nInitialDwellTime;      //in units of milliseconds
     bool      initial_scan_no_dfs_chnl;
 
-    tANI_U32  nActiveMinChnTimeBtc;     //in units of milliseconds
-    tANI_U32  nActiveMaxChnTimeBtc;     //in units of milliseconds
     tANI_U32  disableAggWithBtc;
 #ifdef WLAN_AP_STA_CONCURRENCY
     tANI_U32  nPassiveMinChnTimeConc;    //in units of milliseconds
@@ -1266,6 +1271,7 @@ typedef struct tagCsrConfigParam
     tANI_U8         txBFCsnValue;
     tANI_U8         enable2x2;
     tANI_BOOLEAN    enableVhtFor24GHz;
+    bool            vendor_vht_for_24ghz_sap;
     tANI_U8         enableMuBformee;
     tANI_U8         enableVhtpAid;
     tANI_U8         enableVhtGid;
@@ -1453,8 +1459,8 @@ typedef struct tagCsrRoamInfo
     union {
         struct sme_ndp_peer_ind ndp_peer_ind_params;
         struct ndp_schedule_update_rsp ndp_sched_upd_rsp_params;
-        struct ndp_end_indication_event ndp_end_ind_params;
-        struct ndp_end_rsp_event ndp_end_rsp_params;
+        struct ndp_end_indication_event *ndp_end_ind_params;
+        struct ndp_end_rsp_event *ndp_end_rsp_params;
         struct ndp_confirm_event ndp_confirm_params;
         struct ndp_responder_rsp_event ndp_responder_rsp_params;
         struct ndp_indication_event ndp_indication_params;

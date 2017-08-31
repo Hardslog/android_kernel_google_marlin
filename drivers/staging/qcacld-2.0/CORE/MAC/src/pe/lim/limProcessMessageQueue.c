@@ -244,14 +244,14 @@ __limExtScanForwardBcnProbeRsp(tpAniSirGlobal pmac, uint8_t *rx_pkt_info,
 	tSirMsgQ                     mmh_msg;
 	tpSirMacMgmtHdr              hdr;
 
-	result = vos_mem_malloc(sizeof(*result) + ie_len);
+	result = vos_mem_malloc(sizeof(*result) + ie_len + ie_len);
 	if (NULL == result) {
 		limLog(pmac, LOGE, FL("Memory allocation failed"));
 		return;
 	}
 	hdr = WDA_GET_RX_MAC_HEADER(rx_pkt_info);
 	body = WDA_GET_RX_MPDU_DATA(rx_pkt_info);
-	vos_mem_zero(result, sizeof(*result) + ie_len);
+	vos_mem_zero(result, sizeof(*result) + ie_len + ie_len);
 
 	/* Received frame does not have request id, hence set 0 */
 	result->requestId = 0;
@@ -274,6 +274,15 @@ __limExtScanForwardBcnProbeRsp(tpAniSirGlobal pmac, uint8_t *rx_pkt_info,
 	/* Copy IE fields */
 	vos_mem_copy((uint8_t *) &result->ap.ieData,
 			body + SIR_MAC_B_PR_SSID_OFFSET, ie_len);
+
+	/* bss_description points to ap.ieData as ap.ieData is flexible arrary
+	 * member.
+	 * Fill result->bss_description by leaving ie_len bytes after ap.ieData
+	 * manually.
+	 */
+	limCollectBssDescription(pmac,
+							(tSirBssDescription *)((uint8_t *)&result->bss_description +
+							ie_len), frame, rx_pkt_info, eANI_BOOLEAN_FALSE);
 
 	mmh_msg.type = msg_type;
 	mmh_msg.bodyptr = result;
@@ -1393,12 +1402,10 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
             break;
         case eWNI_SME_SCAN_ABORT_IND:
           {
-            tSirMbMsg *pMsg = limMsg->bodyptr;
-            tANI_U8 sessionId;
+            tSirSmeScanAbortReq *pMsg = (tSirSmeScanAbortReq *) limMsg->bodyptr;
             if (pMsg)
             {
-               sessionId = (tANI_U8) pMsg->data[0];
-               limProcessAbortScanInd(pMac, sessionId);
+               limProcessAbortScanInd(pMac, pMsg->sessionId);
                vos_mem_free((v_VOID_t *)limMsg->bodyptr);
                limMsg->bodyptr = NULL;
             }
@@ -1465,6 +1472,7 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
         case eWNI_SME_NDP_INITIATOR_REQ:
         case eWNI_SME_NDP_RESPONDER_REQ:
         case eWNI_SME_REGISTER_P2P_ACK_CB:
+        case eWNI_SME_NDP_END_REQ:
             // These messages are from HDD
             limProcessNormalHddMsg(pMac, limMsg, false);   //no need to response to hdd
             break;
@@ -2215,6 +2223,8 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
     case SIR_HAL_NDP_INDICATION:
     case SIR_HAL_NDP_CONFIRM:
     case SIR_HAL_NDP_RESPONDER_RSP:
+    case SIR_HAL_NDP_END_RSP:
+    case SIR_HAL_NDP_END_IND:
         lim_handle_ndp_event_message(pMac, limMsg);
         break;
     default:

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -48,7 +48,6 @@
 #include <linux/wireless.h>
 #include <macTrace.h>
 #include <wlan_hdd_includes.h>
-#include <wlan_btc_svc.h>
 #include <wlan_nlink_common.h>
 #include <vos_api.h>
 #include <net/arp.h>
@@ -458,7 +457,6 @@ static const hdd_freq_chan_map_t freq_chan_map[] = { {2412, 1}, {2417, 2},
 #endif
 #define WE_SET_MON_MODE_CHAN 3
 #define WE_DUMP_DP_TRACE_LEVEL    4
-#define DUMP_DP_TRACE       0
 
 #define WLAN_STATS_INVALID            0
 #define WLAN_STATS_RETRY_CNT          1
@@ -9807,55 +9805,59 @@ int wlan_hdd_setIPv6Filter(hdd_context_t *pHddCtx, tANI_U8 filterType,
     return 0;
 }
 
+/**
+ * wlan_hdd_set_mc_addr_list() - Set multicast address list
+ * @pAdapter: Adapter context
+ * @set: flag to notify set/clear action on the multicast addr
+ *
+ * Returns: None
+ */
 void wlan_hdd_set_mc_addr_list(hdd_adapter_t *pAdapter, v_U8_t set)
 {
     v_U8_t i;
     tpSirRcvFltMcAddrList pMulticastAddrs = NULL;
-    tHalHandle hHal = NULL;
+    tHalHandle hHal;
     hdd_context_t* pHddCtx = (hdd_context_t*)pAdapter->pHddCtx;
+    hdd_station_ctx_t *sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
 
-    if (NULL == pHddCtx)
-    {
-        hddLog(VOS_TRACE_LEVEL_ERROR, FL("HDD CTX is NULL"));
+    ENTER();
+
+    if (wlan_hdd_validate_context(pHddCtx))
         return;
-    }
 
     hHal = pHddCtx->hHal;
 
-    if (NULL == hHal)
-    {
+    if (NULL == hHal) {
         hddLog(VOS_TRACE_LEVEL_ERROR, FL("HAL Handle is NULL"));
         return;
     }
 
-    /* Check if INI is enabled or not, other wise just return
-     */
-    if (pHddCtx->cfg_ini->fEnableMCAddrList)
-    {
+    if (!sta_ctx) {
+        hddLog(LOGE, "sta_ctx is NULL");
+        return;
+    }
+
+    if (pHddCtx->cfg_ini->fEnableMCAddrList) {
         pMulticastAddrs = vos_mem_malloc(sizeof(tSirRcvFltMcAddrList));
-        if (NULL == pMulticastAddrs)
-        {
+        if (NULL == pMulticastAddrs) {
             hddLog(VOS_TRACE_LEVEL_ERROR, FL("Could not allocate Memory"));
             return;
         }
         vos_mem_zero(pMulticastAddrs, sizeof(tSirRcvFltMcAddrList));
         pMulticastAddrs->action = set;
 
-        if (set)
-        {
-            /* Following pre-conditions should be satisfied before we
-             * configure the MC address list.
-             */
-            if (((pAdapter->device_mode == WLAN_HDD_INFRA_STATION) ||
-               (pAdapter->device_mode == WLAN_HDD_P2P_CLIENT))
-               && pAdapter->mc_addr_list.mc_cnt
-               && (eConnectionState_Associated ==
-               (WLAN_HDD_GET_STATION_CTX_PTR(pAdapter))->conn_info.connState))
-            {
+        if (set) {
+            if (pAdapter->mc_addr_list.mc_cnt &&
+                     (((pAdapter->device_mode == WLAN_HDD_INFRA_STATION ||
+                       pAdapter->device_mode == WLAN_HDD_P2P_CLIENT) &&
+                       hdd_connIsConnected(sta_ctx)) ||
+                     (WLAN_HDD_IS_NDI(pAdapter) &&
+                       WLAN_HDD_IS_NDI_CONNECTED(pAdapter)))) {
+
                 pMulticastAddrs->ulMulticastAddrCnt =
                                  pAdapter->mc_addr_list.mc_cnt;
-                for (i = 0; i < pAdapter->mc_addr_list.mc_cnt; i++)
-                {
+
+                for (i = 0; i < pAdapter->mc_addr_list.mc_cnt; i++) {
                     memcpy(pMulticastAddrs->multicastAddr[i],
                            &pAdapter->mc_addr_list.addr[i * ETH_ALEN],
                            ETH_ALEN);
@@ -9868,19 +9870,15 @@ void wlan_hdd_set_mc_addr_list(hdd_adapter_t *pAdapter, v_U8_t set)
                 /* Set multicast filter */
                 sme_8023MulticastList(hHal, pAdapter->sessionId,
                                       pMulticastAddrs);
-            }
-            else {
+            } else {
                 hddLog(VOS_TRACE_LEVEL_INFO,
                        FL("MC address list not sent to FW, cnt: %d"),
                         pAdapter->mc_addr_list.mc_cnt);
             }
-        }
-        else
-        {
+        } else {
             /* Need to clear only if it was previously configured
              */
-            if (pAdapter->mc_addr_list.isFilterApplied)
-            {
+            if (pAdapter->mc_addr_list.isFilterApplied) {
                 pMulticastAddrs->ulMulticastAddrCnt =
                                  pAdapter->mc_addr_list.mc_cnt;
                 i = 0;
@@ -9907,12 +9905,12 @@ void wlan_hdd_set_mc_addr_list(hdd_adapter_t *pAdapter, v_U8_t set)
 
         pAdapter->mc_addr_list.isFilterApplied = set ? TRUE : FALSE;
         vos_mem_free(pMulticastAddrs);
-    }
-    else
-    {
+    } else {
         hddLog(VOS_TRACE_LEVEL_INFO,
                 FL("gMCAddrListEnable is not enabled in INI"));
     }
+
+    EXIT();
     return;
 }
 
@@ -10936,6 +10934,10 @@ static int __iw_set_two_ints_getnone(struct net_device *dev,
                        value[1], value[2]);
         if (value[1] == DUMP_DP_TRACE)
             adf_dp_trace_dump_all(value[2]);
+        else if (value[1] == ENABLE_DP_TRACE_LIVE_MODE)
+            adf_dp_trace_enable_live_mode();
+        else if (value[1] == CLEAR_DP_TRACE_BUFFER)
+            adf_dp_trace_clear_buffer();
         else
             hddLog(LOGE, "unexpected value for dump_dp_trace");
         break;

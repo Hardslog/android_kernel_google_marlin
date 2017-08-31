@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1182,7 +1182,6 @@ static int __hif_pci_runtime_suspend(struct pci_dev *pdev)
 				sc->pm_stats.runtime_put);
 		goto out;
 	}
-
 	temp_module = vos_get_context(VOS_MODULE_ID_WDA, vos_context);
 	if (!temp_module) {
 		pr_err("%s: WDA module is NULL\n", __func__);
@@ -1335,7 +1334,8 @@ static inline void hif_pci_pm_debugfs(struct hif_pci_softc *sc, bool init)
 {
 	if (init)
 		sc->pm_dentry = debugfs_create_file("cnss_runtime_pm",
-						S_IRUSR, NULL, sc,
+						S_IRUSR | S_IRGRP | S_IROTH,
+						NULL, sc,
 						&hif_pci_autopm_fops);
 	else
 		debugfs_remove(sc->pm_dentry);
@@ -2678,8 +2678,23 @@ __hif_pci_suspend(struct pci_dev *pdev, pm_message_t state, bool runtime_pm)
            ol_txrx_get_queue_status(txrx_pdev)) {
         msleep(OL_ATH_TX_DRAIN_WAIT_DELAY);
         if (++tx_drain_wait_cnt > OL_ATH_TX_DRAIN_WAIT_CNT) {
-            printk("%s: tx frames are pending\n", __func__);
+            u_int32_t ctrl_addr_dest = CE_BASE_ADDRESS(1);
+            u_int32_t ctrl_addr_src = CE_BASE_ADDRESS(4);
+
             ol_txrx_dump_tx_desc(txrx_pdev);
+            /* Dump vdev tx ll queue stats*/
+            ol_txrx_dump_tx_queue_stats(txrx_pdev);
+            /* increment the pci suspend count, When reach to 10 crash the system*/
+            A_TARGET_ACCESS_BEGIN_RET(targid);
+            printk("%s: Destination ring read idx 0x%x and write idx 0x%x\n",
+                   __func__,
+                   CE_DEST_RING_READ_IDX_GET(targid, ctrl_addr_dest),
+                   CE_DEST_RING_WRITE_IDX_GET(targid, ctrl_addr_dest));
+            printk("%s: Source ring read idx 0x%x and write idx 0x%x\n",
+                   __func__,
+                   CE_SRC_RING_READ_IDX_GET(targid, ctrl_addr_src),
+                   CE_SRC_RING_WRITE_IDX_GET(targid, ctrl_addr_src));
+            A_TARGET_ACCESS_END_RET(targid);
             goto out;
         }
     }
@@ -2885,9 +2900,12 @@ __hif_pci_resume(struct pci_dev *pdev, bool runtime_pm)
 
         if (retry > MAX_REG_READ_RETRIES) {
             pr_err("%s: PCIe link is possible down!\n", __func__);
-            print_config_soc_reg(sc);
-            VOS_ASSERT(0);
-            break;
+            if (vos_is_logp_in_progress(VOS_MODULE_ID_HIF, NULL))
+                return 0;
+            sc->recovery = true;
+            vos_set_logp_in_progress(VOS_MODULE_ID_VOSS, TRUE);
+            vos_wlan_pci_link_down();
+            goto out;
         }
 
         A_MDELAY(1);

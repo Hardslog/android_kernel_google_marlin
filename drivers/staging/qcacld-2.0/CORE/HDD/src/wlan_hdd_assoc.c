@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -51,7 +51,6 @@
 #include <aniGlobal.h>
 #include "dot11f.h"
 #include "wlan_nlink_common.h"
-#include "wlan_btc_svc.h"
 #include "wlan_hdd_power.h"
 #include "wlan_hdd_trace.h"
 #include <linux/ieee80211.h>
@@ -72,6 +71,7 @@
 #include <wlan_logging_sock_svc.h>
 #include "tl_shim.h"
 #include "wlan_hdd_oemdata.h"
+#include "adf_trace.h"
 
 struct ether_addr
 {
@@ -874,7 +874,6 @@ static void hdd_SendAssociationEvent(struct net_device *dev,tCsrRoamInfo *pCsrRo
         }
 #endif
     }
-    send_btc_nlink_msg(type, 0);
 }
 
 static void hdd_connRemoveConnectInfo(hdd_station_ctx_t *pHddStaCtx)
@@ -898,8 +897,15 @@ static void hdd_connRemoveConnectInfo(hdd_station_ctx_t *pHddStaCtx)
 
    vos_mem_zero( &pHddStaCtx->conn_info.SSID, sizeof( tCsrSSIDInfo ) );
 }
-/* TODO Revisit this function. and data path */
-static VOS_STATUS hdd_roamDeregisterSTA( hdd_adapter_t *pAdapter, tANI_U8 staId )
+
+/**
+ * hdd_roamDeregisterSTA() - Deregister STA from data path
+ * @pAdapter - HDD context
+ * @staId - Station ID
+ *
+ * Return: 0 or VOS_STATUS error code
+ */
+VOS_STATUS hdd_roamDeregisterSTA(hdd_adapter_t *pAdapter, tANI_U8 staId)
 {
     VOS_STATUS vosStatus;
     hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
@@ -978,6 +984,10 @@ static eHalStatus hdd_DisConnectHandler( hdd_adapter_t *pAdapter, tCsrRoamInfo *
         vos_pkt_trace_buf_update("ST:DISASC");
      }
 #endif /* QCA_PKT_PROTO_TRACE */
+
+    DPTRACE(adf_dp_trace_mgmt_pkt(ADF_DP_TRACE_MGMT_PACKET_RECORD,
+                   pAdapter->sessionId,
+                   ADF_PROTO_TYPE_MGMT, ADF_PROTO_MGMT_DISASSOC));
 
     /* HDD has initiated disconnect, do not send disconnect indication
      * to kernel. Sending disconnected event to kernel for userspace
@@ -1812,6 +1822,11 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
            vos_pkt_trace_buf_update("ST:ASSOC");
         }
 #endif /* QCA_PKT_PROTO_TRACE */
+
+        DPTRACE(adf_dp_trace_mgmt_pkt(ADF_DP_TRACE_MGMT_PACKET_RECORD,
+                       pAdapter->sessionId,
+                       ADF_PROTO_TYPE_MGMT, ADF_PROTO_MGMT_ASSOC));
+
         //For reassoc, the station is already registered, all we need is to change the state
         //of the STA in TL.
         //If authentication is required (WPA/WPA2/DWEP), change TL to CONNECTED instead of AUTHENTICATED
@@ -1935,7 +1950,7 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
                                        pFTAssocReq, assocReqlen,
                                        pFTAssocRsp, assocRsplen,
                                        WLAN_STATUS_SUCCESS,
-                                       GFP_KERNEL);
+                                       GFP_KERNEL, false);
                 }
             }
             else
@@ -1970,7 +1985,7 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
                                 reqRsnIe, reqRsnLength,
                                 rspRsnIe, rspRsnLength,
                                 WLAN_STATUS_SUCCESS,
-                                GFP_KERNEL);
+                                GFP_KERNEL, false);
                     }
                 }
             }
@@ -2074,6 +2089,7 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
     else
     {
         hdd_context_t* pHddCtx = (hdd_context_t*)pAdapter->pHddCtx;
+        bool connect_timeout = false;
 
         hdd_wext_state_t *pWextState = WLAN_HDD_GET_WEXT_STATE_PTR(pAdapter);
         if (pRoamInfo)
@@ -2148,6 +2164,7 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
                     pRoamInfo ? pRoamInfo->bssid : pWextState->req_bssId);
              sme_remove_bssid_from_scan_list(hHal,
                     pRoamInfo ? pRoamInfo->bssid : pWextState->req_bssId);
+             connect_timeout = true;
         }
 
         /* CR465478: Only send up a connection failure result when CSR has
@@ -2175,12 +2192,12 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
                    hdd_connect_result(dev, pRoamInfo->bssid, NULL,
                         NULL, 0, NULL, 0,
                         WLAN_STATUS_ASSOC_DENIED_UNSPEC,
-                        GFP_KERNEL);
+                        GFP_KERNEL, connect_timeout);
                else
                    hdd_connect_result(dev, pWextState->req_bssId, NULL,
                         NULL, 0, NULL, 0,
                         WLAN_STATUS_ASSOC_DENIED_UNSPEC,
-                        GFP_KERNEL);
+                        GFP_KERNEL, connect_timeout);
             }
             else
             {
@@ -2190,12 +2207,12 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
                         pRoamInfo->reasonCode ?
                         pRoamInfo->reasonCode :
                         WLAN_STATUS_UNSPECIFIED_FAILURE,
-                        GFP_KERNEL);
+                        GFP_KERNEL, connect_timeout);
                else
                    hdd_connect_result(dev, pWextState->req_bssId, NULL,
                         NULL, 0, NULL, 0,
                         WLAN_STATUS_UNSPECIFIED_FAILURE,
-                        GFP_KERNEL);
+                        GFP_KERNEL, connect_timeout);
             }
             /* Clear the roam profile */
             hdd_clearRoamProfileIe(pAdapter);
@@ -2438,6 +2455,9 @@ bool hdd_save_peer(hdd_station_ctx_t *sta_ctx, uint8_t sta_id,
 
 	for (idx = 0; idx < HDD_MAX_NUM_IBSS_STA; idx++) {
 		if (0 == sta_ctx->conn_info.staId[idx]) {
+			hddLog(VOS_TRACE_LEVEL_DEBUG,
+			       FL("adding peer: %pM, sta_id: %d, at idx: %d"),
+			       peer_mac_addr, sta_id, idx);
 			sta_ctx->conn_info.staId[idx] = sta_id;
 			vos_copy_macaddr(
 				&sta_ctx->conn_info.peerMacAddress[idx],
@@ -2446,6 +2466,27 @@ bool hdd_save_peer(hdd_station_ctx_t *sta_ctx, uint8_t sta_id,
 		}
 	}
 	return false;
+}
+
+/**
+ * hdd_delete_peer() - removes peer from hdd station context peer table
+ * @sta_ctx: pointer to hdd station context
+ * @sta_id: station ID
+ *
+ * Return: none
+ */
+void hdd_delete_peer(hdd_station_ctx_t *sta_ctx, uint8_t sta_id)
+{
+	int i;
+
+	for (i = 0; i < HDD_MAX_NUM_IBSS_STA; i++) {
+		if (sta_id == sta_ctx->conn_info.staId[i]) {
+			sta_ctx->conn_info.staId[i] = 0;
+			return;
+		}
+	}
+
+	hddLog(LOGE, FL("sta_id %d is not present in peer table"), sta_id);
 }
 
 /**============================================================================
@@ -5450,4 +5491,3 @@ int iw_get_ap_address(struct net_device *dev, struct iw_request_info *info,
 
 	return ret;
 }
-

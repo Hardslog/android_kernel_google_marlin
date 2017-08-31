@@ -1588,7 +1588,7 @@ static int __validate_multirect(struct msm_fb_data_type *mfd,
 static int __validate_layers(struct msm_fb_data_type *mfd,
 	struct file *file, struct mdp_layer_commit_v1 *commit)
 {
-	int ret, i;
+	int ret, i = 0;
 	int rec_ndx[MDSS_MDP_PIPE_MAX_RECTS] = { 0 };
 	int rec_release_ndx[MDSS_MDP_PIPE_MAX_RECTS] = { 0 };
 	int rec_destroy_ndx[MDSS_MDP_PIPE_MAX_RECTS] = { 0 };
@@ -1598,7 +1598,7 @@ static int __validate_layers(struct msm_fb_data_type *mfd,
 	u32 mixer_mux, dst_x;
 	int layer_count = commit->input_layer_cnt;
 
-	struct mdss_mdp_pipe *pipe, *tmp, *left_blend_pipe;
+	struct mdss_mdp_pipe *pipe = NULL, *tmp, *left_blend_pipe;
 	struct mdss_mdp_pipe *right_plist[MAX_PIPES_PER_LM] = {0};
 	struct mdss_mdp_pipe *left_plist[MAX_PIPES_PER_LM] = {0};
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
@@ -2260,4 +2260,3 @@ done:
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
 	return rc;
 }
-

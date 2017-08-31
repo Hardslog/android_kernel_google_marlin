@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -89,6 +89,7 @@ typedef tANI_U8 tSirVersionString[SIR_VERSION_STRING_LEN];
 #define MAXNUM_PERIODIC_TX_PTRNS 6
 
 #define WIFI_SCANNING_MAC_OUI_LENGTH 3
+#define PROBE_REQ_BITMAP_LEN 8
 
 #define MAX_LEN_UDP_RESP_OFFLOAD 128
 
@@ -691,6 +692,7 @@ typedef struct sSirSmeStartBssReq
 
     tANI_BOOLEAN            obssEnabled;
     uint8_t                 sap_dot11mc;
+    bool                    vendor_vht_for_24ghz_sap;
 
 } tSirSmeStartBssReq, *tpSirSmeStartBssReq;
 
@@ -704,7 +706,7 @@ typedef struct sSirBssDescription
     //offset of the ieFields from bssId.
     tANI_U16             length;
     tSirMacAddr          bssId;
-    v_TIME_t             scanSysTimeMsec;
+    v_TIME_t             scansystimensec;
     tANI_U32             timeStamp[2];
     tANI_U16             beaconInterval;
     tANI_U16             capabilityInfo;
@@ -931,6 +933,15 @@ typedef struct sSirSmeScanReq
     tANI_U16             uIEFieldLen;
     tANI_U16             uIEFieldOffset;
 
+    uint32_t enable_scan_randomization;
+    uint8_t mac_addr[VOS_MAC_ADDR_SIZE];
+    uint8_t mac_addr_mask[VOS_MAC_ADDR_SIZE];
+    bool ie_whitelist;
+    uint32_t probe_req_ie_bitmap[PROBE_REQ_BITMAP_LEN];
+    uint32_t num_vendor_oui;
+    uint32_t oui_field_len;
+    uint32_t oui_field_offset;
+
     //channelList MUST be the last field of this structure
     tSirChannelList channelList;
     /*-----------------------------
@@ -949,7 +960,10 @@ typedef struct sSirSmeScanReq
       ----------------------------- <--+
       ... variable size uIEFiled
       up to uIEFieldLen (can be 0)
-      -----------------------------*/
+      -----------------------------
+      ... variable size upto num_vendor_oui
+      struct vendor_oui voui;
+    */
 } tSirSmeScanReq, *tpSirSmeScanReq;
 
 typedef struct sSirSmeScanAbortReq
@@ -970,8 +984,9 @@ typedef struct sSirSmeScanChanReq
 #ifdef FEATURE_OEM_DATA_SUPPORT
 
 #ifndef OEM_DATA_REQ_SIZE
-#define OEM_DATA_REQ_SIZE 280
+#define OEM_DATA_REQ_SIZE 500
 #endif
+
 #ifndef OEM_DATA_RSP_SIZE
 #define OEM_DATA_RSP_SIZE 1724
 #endif
@@ -981,7 +996,7 @@ typedef struct sSirOemDataReq
     tANI_U16              messageType; /* eWNI_SME_OEM_DATA_REQ */
     tANI_U16              messageLen;
     tSirMacAddr           selfMacAddr;
-    uint8_t               data_len;
+    uint32_t               data_len;
     uint8_t               *data;
 } tSirOemDataReq, *tpSirOemDataReq;
 
@@ -3704,6 +3719,18 @@ typedef struct
 } tSirNetworkType;
 
 /**
+ * struct connected_pno_band_rssi_pref - BSS preference based on band
+ * and RSSI
+ * @band: band preference
+ * @rssi_pref: RSSI preference
+ */
+struct connected_pno_band_rssi_pref
+{
+	tSirRFBand band;
+	int8_t rssi;
+};
+
+/**
  * struct sSirPNOScanReq - PNO Scan request structure
  * @enable: flag to enable or disable
  * @modePNO: PNO Mode
@@ -3722,6 +3749,10 @@ typedef struct
  * @p24GProbeTemplate: 2.4G probe template
  * @us5GProbeTemplateLen: 5G probe template length
  * @p5GProbeTemplate: 5G probe template
+ * @relative_rssi_set: Flag to check whether realtive_rssi is set or not
+ * @relative_rssi: Relative rssi threshold, used for connected pno
+ * @band_rssi_pref: Band and RSSI preference that can be given to one BSS
+ * over the other BSS
  */
 typedef struct sSirPNOScanReq {
 	uint8_t         enable;
@@ -3743,6 +3774,19 @@ typedef struct sSirPNOScanReq {
 	uint8_t         p24GProbeTemplate[SIR_PNO_MAX_PB_REQ_SIZE];
 	uint16_t        us5GProbeTemplateLen;
 	uint8_t         p5GProbeTemplate[SIR_PNO_MAX_PB_REQ_SIZE];
+
+	bool            relative_rssi_set;
+	int8_t          relative_rssi;
+	struct          connected_pno_band_rssi_pref band_rssi_pref;
+
+	/* mac address randomization attributes */
+	uint32_t enable_pno_scan_randomization;
+	uint8_t mac_addr[VOS_MAC_ADDR_SIZE];
+	uint8_t mac_addr_mask[VOS_MAC_ADDR_SIZE];
+	bool ie_whitelist;
+	uint32_t probe_req_ie_bitmap[PROBE_REQ_BITMAP_LEN];
+	uint32_t num_vendor_oui;
+	/* followed by one or more struct vendor_oui */
 } tSirPNOScanReq, *tpSirPNOScanReq;
 
 typedef struct sSirSetRSSIFilterReq
@@ -4467,6 +4511,16 @@ typedef struct sSirScanOffloadReq {
     tSirP2pScanType p2pScanType;
     tANI_U16 uIEFieldLen;
     tANI_U16 uIEFieldOffset;
+
+    uint32_t enable_scan_randomization;
+    uint8_t mac_addr[VOS_MAC_ADDR_SIZE];
+    uint8_t mac_addr_mask[VOS_MAC_ADDR_SIZE];
+    bool ie_whitelist;
+    uint32_t probe_req_ie_bitmap[PROBE_REQ_BITMAP_LEN];
+    uint32_t num_vendor_oui;
+    uint32_t oui_field_len;
+    uint32_t oui_field_offset;
+
     tSirChannelList channelList;
     /*-----------------------------
       sSirScanOffloadReq....
@@ -4484,7 +4538,10 @@ typedef struct sSirScanOffloadReq {
       ----------------------------- <--+
       ... variable size uIEField
       up to uIEFieldLen (can be 0)
-      -----------------------------*/
+      -----------------------------
+      ... variable size upto num_vendor_oui
+      struct vendor_oui voui;
+      ------------------------*/
 } tSirScanOffloadReq, *tpSirScanOffloadReq;
 
 /**
@@ -5213,6 +5270,7 @@ struct ext_scan_capabilities_response
 	uint32_t    max_number_epno_networks;
 	uint32_t    max_number_epno_networks_by_ssid;
 	uint32_t    max_number_of_white_listed_ssid;
+	uint32_t    max_number_of_black_listed_bssid;
 };
 
 
@@ -5344,6 +5402,7 @@ struct extscan_cached_scan_results
  * @moreData: 0 - for last fragment
  *             1 - still more fragment(s) coming
  * @ap: bssid info
+ * @bss_description: BSS description
  *
  * Reported when each probe response is received, if reportEvents
  * enabled in tSirWifiScanCmdReqParams
@@ -5353,6 +5412,7 @@ typedef struct
 	uint32_t            requestId;
 	bool                moreData;
 	tSirWifiScanResult  ap;
+	tSirBssDescription bss_description;
 } tSirWifiFullScanResultEvent, *tpSirWifiFullScanResultEvent;
 
 /**
@@ -5711,9 +5771,47 @@ typedef struct
   tANI_U8   stopReq;
 } tSirLLStatsClearReq, *tpSirLLStatsClearReq;
 
+/**
+ * struct vendor_oui - probe request ie vendor oui information
+ * @oui_type: type of the vendor oui (3 valid octets)
+ * @oui_subtype: subtype of the vendor oui (1 valid octet)
+ */
+struct vendor_oui {
+	uint32_t oui_type;
+	uint32_t oui_subtype;
+};
+
+#ifdef WLAN_POWER_DEBUGFS
+/**
+ * struct power_stats_response - Power stats response
+ * @cumulative_sleep_time_ms: cumulative sleep time in ms
+ * @cumulative_total_on_time_ms: total awake time in ms
+ * @deep_sleep_enter_counter: deep sleep enter counter
+ * @last_deep_sleep_enter_tstamp_ms: last deep sleep enter timestamp
+ * @debug_register_fmt: debug registers format
+ * @num_debug_register: number of debug registers
+ * @debug_registers: Pointer to the debug registers buffer
+ */
+struct power_stats_response {
+	uint32_t cumulative_sleep_time_ms;
+	uint32_t cumulative_total_on_time_ms;
+	uint32_t deep_sleep_enter_counter;
+	uint32_t last_deep_sleep_enter_tstamp_ms;
+	uint32_t debug_register_fmt;
+	uint32_t num_debug_register;
+	uint32_t *debug_registers;
+};
+#endif
+
 typedef struct
 {
     tANI_U8 oui[WIFI_SCANNING_MAC_OUI_LENGTH];
+    uint32_t vdev_id;
+    bool enb_probe_req_sno_randomization;
+    bool ie_whitelist;
+    uint32_t probe_req_ie_bitmap[PROBE_REQ_BITMAP_LEN];
+    uint32_t num_vendor_oui;
+    /* Followed by 0 or more struct vendor_oui */
 } tSirScanMacOui, *tpSirScanMacOui;
 
 enum {
@@ -6820,6 +6918,11 @@ struct sir_bpf_get_offload {
  * @wow_ipv6_mcast_na_stats: ipv6 multicast na stats
  * @wow_icmpv4_count: ipv4 icmp packet count
  * @wow_icmpv6_count: ipv6 icmp packet count
+ * @wow_rssi_breach_wake_up_count: rssi breach wakeup count
+ * @wow_low_rssi_wake_up_count: low rssi wakeup count
+ * @wow_gscan_wake_up_count: gscan wakeup count
+ * @wow_pno_complete_wake_up_count: pno complete wakeup count
+ * @wow_pno_match_wake_up_count: pno match wakeup count
  */
 struct sir_wake_lock_stats {
 	uint32_t wow_ucast_wake_up_count;
@@ -6831,6 +6934,11 @@ struct sir_wake_lock_stats {
 	uint32_t wow_ipv6_mcast_na_stats;
 	uint32_t wow_icmpv4_count;
 	uint32_t wow_icmpv6_count;
+	uint32_t wow_rssi_breach_wake_up_count;
+	uint32_t wow_low_rssi_wake_up_count;
+	uint32_t wow_gscan_wake_up_count;
+	uint32_t wow_pno_complete_wake_up_count;
+	uint32_t wow_pno_match_wake_up_count;
 };
 
 /**
@@ -7050,6 +7158,79 @@ enum ndp_response_code {
 };
 
 /**
+ * enum ndp_end_type - NDP end type
+ * @NDP_END_TYPE_UNSPECIFIED: type is unspecified
+ * @NDP_END_TYPE_PEER_UNAVAILABLE: type is peer unavailable
+ * @NDP_END_TYPE_OTA_FRAME: type OTA frame
+ *
+ */
+enum ndp_end_type {
+	NDP_END_TYPE_UNSPECIFIED = 0x00,
+	NDP_END_TYPE_PEER_UNAVAILABLE = 0x01,
+	NDP_END_TYPE_OTA_FRAME = 0x02,
+};
+
+/**
+ * enum ndp_end_reason_code - NDP end reason code
+ * @NDP_END_TYPE_UNSPECIFIED: reason is unspecified
+ * @NDP_END_TYPE_PEER_UNAVAILABLE: reason is peer inactivity
+ * @NDP_END_TYPE_OTA_FRAME: reason data end
+ *
+ */
+enum ndp_end_reason_code {
+	NDP_END_REASON_UNSPECIFIED = 0x00,
+	NDP_END_REASON_INACTIVITY = 0x01,
+	NDP_END_REASON_PEER_DATA_END = 0x02,
+};
+
+/**
+ * enum nan_status_type - NDP status type
+ * @NDP_RSP_STATUS_SUCCESS: request was successful
+ * @NDP_RSP_STATUS_ERROR: request failed
+ */
+enum nan_status_type {
+	NDP_RSP_STATUS_SUCCESS = 0x00,
+	NDP_RSP_STATUS_ERROR = 0x01,
+};
+
+/**
+ * enum nan_reason_code - NDP command rsp reason code value
+ * @NDP_UNSUPPORTED_CONCURRENCY: Will be used in unsupported concurrency cases
+ * @NDP_NAN_DATA_IFACE_CREATE_FAILED: ndi create failed
+ * @NDP_NAN_DATA_IFACE_DELETE_FAILED: ndi delete failed
+ * @NDP_DATA_INITIATOR_REQ_FAILED: data initiator request failed
+ * @NDP_DATA_RESPONDER_REQ_FAILED: data responder request failed
+ * @NDP_INVALID_SERVICE_INSTANCE_ID: invalid service instance id
+ * @NDP_INVALID_NDP_INSTANCE_ID: invalid ndp instance id
+ * @NDP_INVALID_RSP_CODE: invalid response code in ndp responder request
+ * @NDP_INVALID_APP_INFO_LEN: invalid app info length
+ * @NDP_NMF_REQ_FAIL: OTA nan mgmt frame failure for data request
+ * @NDP_NMF_RSP_FAIL: OTA nan mgmt frame failure for data response
+ * @NDP_NMF_CNF_FAIL: OTA nan mgmt frame failure for confirm
+ * @NDP_END_FAILED: ndp end failed
+ * @NDP_NMF_END_REQ_FAIL: OTA nan mgmt frame failure for data end
+ * @NDP_VENDOR_SPECIFIC_ERROR: other vendor specific failures
+ */
+enum nan_reason_code {
+	NDP_UNSUPPORTED_CONCURRENCY = 9000,
+	NDP_NAN_DATA_IFACE_CREATE_FAILED = 9001,
+	NDP_NAN_DATA_IFACE_DELETE_FAILED = 9002,
+	NDP_DATA_INITIATOR_REQ_FAILED = 9003,
+	NDP_DATA_RESPONDER_REQ_FAILED = 9004,
+	NDP_INVALID_SERVICE_INSTANCE_ID = 9005,
+	NDP_INVALID_NDP_INSTANCE_ID = 9006,
+	NDP_INVALID_RSP_CODE = 9007,
+	NDP_INVALID_APP_INFO_LEN = 9008,
+	NDP_NMF_REQ_FAIL = 9009,
+	NDP_NMF_RSP_FAIL = 9010,
+	NDP_NMF_CNF_FAIL = 9011,
+	NDP_END_FAILED = 9012,
+	NDP_NMF_END_REQ_FAIL = 9013,
+	/* 9500 onwards vendor specific error codes */
+	NDP_VENDOR_SPECIFIC_ERROR = 9500,
+};
+
+/**
  * struct ndp_cfg - ndp configuration
  * @tag: unique identifier
  * @ndp_cfg_len: ndp configuration length
@@ -7089,6 +7270,28 @@ struct ndp_app_info {
 };
 
 /**
+ * struct ndp_scid - structure to hold sceurity context identifier
+ * @scid_len: length of scid
+ * @scid: scid
+ *
+ */
+struct ndp_scid {
+	uint32_t scid_len;
+	uint8_t *scid;
+};
+
+/**
+ * struct ndp_pmk - structure to hold pairwise master key
+ * @pmk_len: length of pairwise master key
+ * @pmk: buffer containing pairwise master key
+ *
+ */
+struct ndp_pmk {
+	uint32_t pmk_len;
+	uint8_t *pmk;
+};
+
+/**
  * struct ndi_create_req - ndi create request params
  * @transaction_id: unique identifier
  * @iface_name: interface name
@@ -7101,37 +7304,23 @@ struct ndp_app_info {
 
 /**
  * struct ndi_create_rsp - ndi create response params
- * @transaction_id: unique identifier
  * @status: request status
  * @reason: reason if any
  *
  */
  struct ndi_create_rsp {
-	uint32_t transaction_id;
 	uint32_t status;
 	uint32_t reason;
-};
-
-/**
- * struct ndi_delete_req - ndi delete request params
- * @transaction_id: unique identifier
- * @iface_name: interface name
- *
- */
- struct ndi_delete_req {
-	uint32_t transaction_id;
-	char  iface_name[IFACE_NAME_SIZE];
+	uint8_t sta_id;
 };
 
 /**
  * struct ndi_delete_rsp - ndi delete response params
- * @transaction_id: unique identifier
  * @status: request status
  * @reason: reason if any
  *
  */
  struct ndi_delete_rsp {
-	uint32_t transaction_id;
 	uint32_t status;
 	uint32_t reason;
 };
@@ -7141,22 +7330,28 @@ struct ndp_app_info {
  * @transaction_id: unique identifier
  * @vdev_id: session id of the interface over which ndp is being created
  * @channel: suggested channel for ndp creation
+ * @channel_cfg: channel config, 0=no channel, 1=optional, 2=mandatory
  * @service_instance_id: Service identifier
  * @peer_discovery_mac_addr: Peer's discovery mac address
  * @self_ndi_mac_addr: self NDI mac address
  * @ndp_config: ndp configuration params
  * @ndp_info: ndp application info
+ * @ncs_sk_type: indicates NCS_SK_128 or NCS_SK_256
+ * @pmk: pairwise master key
  *
  */
 struct ndp_initiator_req {
 	uint32_t transaction_id;
 	uint32_t vdev_id;
 	uint32_t channel;
+	uint32_t channel_cfg;
 	uint32_t service_instance_id;
 	v_MACADDR_t peer_discovery_mac_addr;
 	v_MACADDR_t self_ndi_mac_addr;
 	struct ndp_cfg ndp_config;
 	struct ndp_app_info ndp_info;
+	uint32_t ncs_sk_type;
+	struct ndp_pmk pmk;
 };
 
 /**
@@ -7173,6 +7368,7 @@ struct ndp_initiator_rsp {
 	uint32_t vdev_id;
 	uint32_t ndp_instance_id;
 	uint32_t status;
+	uint32_t reason;
 };
 
 /**
@@ -7187,6 +7383,8 @@ struct ndp_initiator_rsp {
  * @ndp_accept_policy: accept policy configured by the upper layer
  * @ndp_config: ndp configuration params
  * @ndp_info: ndp application info
+ * @ncs_sk_type: indicates NCS_SK_128 or NCS_SK_256
+ * @scid: security context identifier
  *
  */
 struct ndp_indication_event {
@@ -7199,6 +7397,8 @@ struct ndp_indication_event {
 	enum ndp_accept_policy policy;
 	struct ndp_cfg ndp_config;
 	struct ndp_app_info ndp_info;
+	uint32_t ncs_sk_type;
+	struct ndp_scid scid;
 };
 
 /**
@@ -7209,6 +7409,8 @@ struct ndp_indication_event {
  * @ndp_rsp: response to the ndp create request
  * @ndp_config: ndp configuration params
  * @ndp_info: ndp application info
+ * @pmk: pairwise master key
+ * @ncs_sk_type: indicates NCS_SK_128 or NCS_SK_256
  *
  */
 struct ndp_responder_req {
@@ -7218,6 +7420,8 @@ struct ndp_responder_req {
 	enum ndp_response_code ndp_rsp;
 	struct ndp_cfg ndp_config;
 	struct ndp_app_info ndp_info;
+	struct ndp_pmk pmk;
+	uint32_t ncs_sk_type;
 };
 
 /**
@@ -7235,40 +7439,41 @@ struct ndp_responder_rsp_event {
 	uint32_t status;
 	uint32_t reason;
 	v_MACADDR_t peer_mac_addr;
+	bool create_peer;
 };
 
 /**
  * struct ndp_confirm_event - ndp confirmation event from FW
  * @vdev_id: session id of the interface over which ndp is being created
  * @ndp_instance_id: ndp instance id for which confirm is being generated
+ * @reason_code : reason code(opaque to driver)
+ * @num_active_ndps_on_peer: number of ndp instances on peer
  * @peer_ndi_mac_addr: peer NDI mac address
  * @rsp_code: ndp response code
- * @ndp_config: ndp configuration
  * @ndp_info: ndp application info
  *
  */
 struct ndp_confirm_event {
 	uint32_t vdev_id;
 	uint32_t ndp_instance_id;
+	uint32_t reason_code;
+	uint32_t num_active_ndps_on_peer;
 	v_MACADDR_t peer_ndi_mac_addr;
 	enum ndp_response_code rsp_code;
-	struct ndp_cfg ndp_config;
 	struct ndp_app_info ndp_info;
 };
 
 /**
  * struct ndp_end_req - ndp end request
  * @transaction_id: unique transaction identifier
- * @vdev_id: session id of the interface over which ndp is being created
  * @num_ndp_instances: number of ndp instances to be terminated
- * @ndp_instances: list of ndp instances to be terminated
+ * @ndp_ids: pointer to array of ndp_instance_id to be terminated
  *
  */
 struct ndp_end_req {
 	uint32_t transaction_id;
-	uint32_t vdev_id;
 	uint32_t num_ndp_instances;
-	uint32_t ndp_instances[];
+	uint32_t *ndp_ids;
 };
 
 /**
@@ -7276,39 +7481,41 @@ struct ndp_end_req {
  * @vdev_id: session id of the interface over which ndp is being created
  * @peer_ndi_mac_addr: peer NDI mac address
  * @num_active_ndp_sessions: number of active NDP sessions on the peer
+ * @type: NDP end indication type
+ * @reason_code: NDP end indication reason code
+ * @ndp_instance_id: NDP instance ID
  *
  */
 struct peer_ndp_map {
 	uint32_t vdev_id;
 	v_MACADDR_t peer_ndi_mac_addr;
 	uint32_t num_active_ndp_sessions;
+	enum ndp_end_type type;
+	enum ndp_end_reason_code reason_code;
+	uint32_t ndp_instance_id;
 };
 
 /**
  * struct ndp_end_rsp_event  - firmware response to ndp end request
  * @transaction_id: unique identifier for the request
- * @vdev_id: session id of the interface over which ndp is being created
- * @ndp_map: mapping of NDP instances to peer to VDEV
+ * @status: status of operation
+ * @reason: reason(opaque to host driver)
  *
  */
 struct ndp_end_rsp_event {
 	uint32_t transaction_id;
-	uint32_t vdev_id;
-	struct peer_ndp_map ndp_map[];
+	uint32_t status;
+	uint32_t reason;
 };
 
 /**
  * struct ndp_end_indication_event - ndp termination notification from FW
- * @vdev_id: session id of the interface over which ndp is being created
- * @reason: reason code for failure if any
- * @status: status of the request
- * @ndp_map: mapping of NDP instances to peer to VDEV
+ * @num_ndp_ids: number of NDP ids
+ * @ndp_map: mapping of NDP instances to peer and vdev
  *
  */
 struct ndp_end_indication_event {
-	uint32_t vdev_id;
-	uint32_t status;
-	uint32_t reason;
+	uint32_t num_ndp_ids;
 	struct peer_ndp_map ndp_map[];
 };
 
@@ -7371,6 +7578,34 @@ struct sir_set_tx_rx_aggregation_size {
 	uint8_t vdev_id;
 	uint32_t tx_aggregation_size;
 	uint32_t rx_aggregation_size;
+};
+
+/**
+ * enum action_filter_type - Type of action frame filter
+ * @SME_ACTION_FRAME_RANDOM_MAC_SET: Set filter
+ * @SME_ACTION_FRAME_RANDOM_MAC_CLEAR: Clear filter
+ */
+enum action_filter_type {
+	SME_ACTION_FRAME_RANDOM_MAC_SET,
+	SME_ACTION_FRAME_RANDOM_MAC_CLEAR,
+};
+
+typedef void (*action_frame_random_filter_callback)(bool set_random_addr,
+						    void *context);
+/**
+ * struct action_frame_random_filter - Random mac filter attrs for set/clear
+ * @session_id: Session interface
+ * @filter_type: Type of filter from action_filter_type
+ * @callback: Invoked from wmi
+ * @context: Parameter to be used with callback
+ * @mac_addr: Random mac addr for which filter is to be set
+ */
+struct action_frame_random_filter {
+	uint32_t session_id;
+	enum action_filter_type filter_type;
+	action_frame_random_filter_callback callback;
+	void *context;
+	uint8_t mac_addr[VOS_MAC_ADDR_SIZE];
 };
 
 #endif /* __SIR_API_H */

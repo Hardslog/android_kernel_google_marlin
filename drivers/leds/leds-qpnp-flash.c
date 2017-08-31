@@ -523,14 +523,12 @@ static ssize_t flash_led_dfs_fault_reg_enable(struct file *file,
 		goto unlock_mutex;
 	}
 
-	ret = copy_from_user(kbuf, buf, count);
-	if (!ret) {
+	if (copy_from_user(kbuf, buf, count)) {
 		pr_err("failed to copy data from user\n");
 		ret = -EFAULT;
 		goto free_buf;
 	}
 
-	count -= ret;
 	*ppos += count;
 	kbuf[count] = '\0';
 	val = kbuf;
@@ -3304,6 +3302,7 @@ err_create_pmi8994_work_queue:
 		gpio_free(led->flash_strobe);
 	mutex_destroy(&led->flash_led_lock);
 	destroy_workqueue(led->ordered_workq);
+	kfree(led);
 
 	return rc;
 }

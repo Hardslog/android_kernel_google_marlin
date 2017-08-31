@@ -56,6 +56,8 @@
 
 //Number of items that can be configured
 #define MAX_CFG_INI_ITEMS   1024
+#define MAX_PRB_REQ_VENDOR_OUI_INI_LEN 160
+#define VENDOR_SPECIFIC_IE_BITMAP 0x20000000
 
 #ifdef SAP_AUTH_OFFLOAD
 /* 802.11 pre-share key length */
@@ -548,16 +550,6 @@ enum
 #define CFG_ACTIVE_MIN_CHANNEL_TIME_MIN        ( 0 )
 #define CFG_ACTIVE_MIN_CHANNEL_TIME_MAX        ( 10000 )
 #define CFG_ACTIVE_MIN_CHANNEL_TIME_DEFAULT    ( 20 )
-
-#define CFG_ACTIVE_MAX_CHANNEL_TIME_BTC_NAME       "gActiveMaxChannelTimeBtc"
-#define CFG_ACTIVE_MAX_CHANNEL_TIME_BTC_MIN        ( 0 )
-#define CFG_ACTIVE_MAX_CHANNEL_TIME_BTC_MAX        ( 10000 )
-#define CFG_ACTIVE_MAX_CHANNEL_TIME_BTC_DEFAULT    ( 120 )
-
-#define CFG_ACTIVE_MIN_CHANNEL_TIME_BTC_NAME       "gActiveMinChannelTimeBtc"
-#define CFG_ACTIVE_MIN_CHANNEL_TIME_BTC_MIN        ( 0 )
-#define CFG_ACTIVE_MIN_CHANNEL_TIME_BTC_MAX        ( 10000 )
-#define CFG_ACTIVE_MIN_CHANNEL_TIME_BTC_DEFAULT    ( 60 )
 
 #define CFG_RETRY_LIMIT_ZERO_NAME       "gRetryLimitZero"
 #define CFG_RETRY_LIMIT_ZERO_MIN        ( 0 )
@@ -2361,6 +2353,16 @@ typedef enum
 #define CFG_ENABLE_VHT_FOR_24GHZ_MAX              (1)
 #define CFG_ENABLE_VHT_FOR_24GHZ_DEFAULT          (0)
 
+/*
+ * Parameter to control VHT support based on vendor ie in 2.4 GHz band
+ * This parameter will enable SAP to read VHT capability in vendor ie in Assoc
+ * Req and send VHT caps in Resp to establish connection in VHT Mode.
+ */
+#define CFG_ENABLE_VENDOR_VHT_FOR_24GHZ_NAME      "gEnableVendorVhtFor24GHzBand"
+#define CFG_ENABLE_VENDOR_VHT_FOR_24GHZ_MIN       (0)
+#define CFG_ENABLE_VENDOR_VHT_FOR_24GHZ_MAX       (1)
+#define CFG_ENABLE_VENDOR_VHT_FOR_24GHZ_DEFAULT   (1)
+
 
 #define CFG_MAX_MEDIUM_TIME                      "gMaxMediumTime"
 #define CFG_MAX_MEDIUM_TIME_STAMIN               WNI_CFG_MAX_MEDIUM_TIME_STAMIN
@@ -3860,6 +3862,160 @@ enum dot11p_mode {
 #define CFG_ACTIVE_MODE_OFFLOAD_MAX        (1)
 #define CFG_ACTIVE_MODE_OFFLOAD_DEFAULT    (0)
 
+/*
+ * maximum interval (in seconds) for a
+ * single scan plan supported by the device.
+ */
+#define CFG_MAX_SCHED_SCAN_PLAN_INT_NAME       "g_max_sched_scan_plan_int"
+#define CFG_MAX_SCHED_SCAN_PLAN_INT_MIN        (1)
+#define CFG_MAX_SCHED_SCAN_PLAN_INT_MAX        (7200)
+#define CFG_MAX_SCHED_SCAN_PLAN_INT_DEFAULT    (3600)
+
+/*
+ * maximum number of iterations for a single
+ * scan plan supported by the device.
+ */
+#define CFG_MAX_SCHED_SCAN_PLAN_ITRNS_NAME       "g_max_sched_scan_plan_itrns"
+#define CFG_MAX_SCHED_SCAN_PLAN_ITRNS_MIN        (1)
+#define CFG_MAX_SCHED_SCAN_PLAN_ITRNS_MAX        (100)
+#define CFG_MAX_SCHED_SCAN_PLAN_ITRNS_DEFAULT    (10)
+
+/*
+ * 5G preference parameters for boosting RSSI
+ * enable_band_specific_pref: Enable preference for 5G from INI.
+ * raise_rssi_thresh_5g: A_band_boost_threshold above which 5 GHz is favored.
+ * raise_factor_5g : Factor by which 5GHz RSSI is boosted.
+ * max_raise_rssi_5g: Maximum boost that can be applied to 5GHz RSSI.
+ */
+
+#define CFG_ENABLE_5G_BAND_PREF_NAME             "enable_5g_band_pref"
+#define CFG_ENABLE_5G_BAND_PREF_MIN              (0)
+#define CFG_ENABLE_5G_BAND_PREF_MAX              (1)
+#define CFG_ENABLE_5G_BAND_PREF_DEFAULT          (0)
+
+#define CFG_5G_RSSI_BOOST_THRESHOLD_NAME         "5g_rssi_boost_threshold"
+#define CFG_5G_RSSI_BOOST_THRESHOLD_MIN          (-55)
+#define CFG_5G_RSSI_BOOST_THRESHOLD_MAX          (-70)
+#define CFG_5G_RSSI_BOOST_THRESHOLD_DEFAULT      (-60)
+
+#define CFG_5G_RSSI_BOOST_FACTOR_NAME            "5g_rssi_boost_factor"
+#define CFG_5G_RSSI_BOOST_FACTOR_MIN             (0)
+#define CFG_5G_RSSI_BOOST_FACTOR_MAX             (2)
+#define CFG_5G_RSSI_BOOST_FACTOR_DEFAULT         (1)
+
+#define CFG_5G_MAX_RSSI_BOOST_NAME               "5g_max_rssi_boost"
+#define CFG_5G_MAX_RSSI_BOOST_MIN                (0)
+#define CFG_5G_MAX_RSSI_BOOST_MAX                (20)
+#define CFG_5G_MAX_RSSI_BOOST_DEFAULT            (10)
+
+/*
+ * 5G preference parameters for penalizing RSSI
+ * drop_rssi_thresh_5g: threshold below which 5 GHz is not favored.
+ * drop_factor_5g : Factor by which a weak 5GHz RSSI is penalized.
+ * max_drop_rssi_5g: Maximum penalty that can be applied to 5GHz RSSI.
+ */
+
+#define CFG_5G_RSSI_PENALIZE_THRESHOLD_NAME      "5g_rssi_penalize_threshold"
+#define CFG_5G_RSSI_PENALIZE_THRESHOLD_MIN       (-65)
+#define CFG_5G_RSSI_PENALIZE_THRESHOLD_MAX       (-80)
+#define CFG_5G_RSSI_PENALIZE_THRESHOLD_DEFAULT   (-70)
+
+#define CFG_5G_RSSI_PENALIZE_FACTOR_NAME         "5g_rssi_penalize_factor"
+#define CFG_5G_RSSI_PENALIZE_FACTOR_MIN          (0)
+#define CFG_5G_RSSI_PENALIZE_FACTOR_MAX          (2)
+#define CFG_5G_RSSI_PENALIZE_FACTOR_DEFAULT      (1)
+
+#define CFG_5G_MAX_RSSI_PENALIZE_NAME            "5g_max_rssi_penalize"
+#define CFG_5G_MAX_RSSI_PENALIZE_MIN             (0)
+#define CFG_5G_MAX_RSSI_PENALIZE_MAX             (20)
+#define CFG_5G_MAX_RSSI_PENALIZE_DEFAULT         (10)
+
+/* enable/disable probe request whiltelist IE feature */
+#define CFG_PRB_REQ_IE_WHITELIST_NAME    "g_enable_probereq_whitelist_ies"
+#define CFG_PRB_REQ_IE_WHITELIST_MIN     (0)
+#define CFG_PRB_REQ_IE_WHITELIST_MAX     (1)
+#define CFG_PRB_REQ_IE_WHITELIST_DEFAULT (0)
+/*
+ * For IE white listing in Probe Req, following ini parameters from
+ * g_probe_req_ie_bitmap_0 to g_probe_req_ie_bitmap_7 are used. User needs to
+ * input this values in hexa decimal format, when bit is set, corresponding ie
+ * needs to be included in probe request.
+ */
+#define CFG_PRB_REQ_IE_BIT_MAP0_NAME    "g_probe_req_ie_bitmap_0"
+#define CFG_PRB_REQ_IE_BIT_MAP0_MIN     (0x00000000)
+#define CFG_PRB_REQ_IE_BIT_MAP0_MAX     (0xFFFFFFFF)
+#define CFG_PRB_REQ_IE_BIT_MAP0_DEFAULT (0x00000000)
+
+#define CFG_PRB_REQ_IE_BIT_MAP1_NAME    "g_probe_req_ie_bitmap_1"
+#define CFG_PRB_REQ_IE_BIT_MAP1_MIN     (0x00000000)
+#define CFG_PRB_REQ_IE_BIT_MAP1_MAX     (0xFFFFFFFF)
+#define CFG_PRB_REQ_IE_BIT_MAP1_DEFAULT (0x00000000)
+
+#define CFG_PRB_REQ_IE_BIT_MAP2_NAME    "g_probe_req_ie_bitmap_2"
+#define CFG_PRB_REQ_IE_BIT_MAP2_MIN     (0x00000000)
+#define CFG_PRB_REQ_IE_BIT_MAP2_MAX     (0xFFFFFFFF)
+#define CFG_PRB_REQ_IE_BIT_MAP2_DEFAULT (0x00000000)
+
+#define CFG_PRB_REQ_IE_BIT_MAP3_NAME    "g_probe_req_ie_bitmap_3"
+#define CFG_PRB_REQ_IE_BIT_MAP3_MIN     (0x00000000)
+#define CFG_PRB_REQ_IE_BIT_MAP3_MAX     (0xFFFFFFFF)
+#define CFG_PRB_REQ_IE_BIT_MAP3_DEFAULT (0x00000000)
+
+#define CFG_PRB_REQ_IE_BIT_MAP4_NAME    "g_probe_req_ie_bitmap_4"
+#define CFG_PRB_REQ_IE_BIT_MAP4_MIN     (0x00000000)
+#define CFG_PRB_REQ_IE_BIT_MAP4_MAX     (0xFFFFFFFF)
+#define CFG_PRB_REQ_IE_BIT_MAP4_DEFAULT (0x00000000)
+
+#define CFG_PRB_REQ_IE_BIT_MAP5_NAME    "g_probe_req_ie_bitmap_5"
+#define CFG_PRB_REQ_IE_BIT_MAP5_MIN     (0x00000000)
+#define CFG_PRB_REQ_IE_BIT_MAP5_MAX     (0xFFFFFFFF)
+#define CFG_PRB_REQ_IE_BIT_MAP5_DEFAULT (0x00000000)
+
+#define CFG_PRB_REQ_IE_BIT_MAP6_NAME    "g_probe_req_ie_bitmap_6"
+#define CFG_PRB_REQ_IE_BIT_MAP6_MIN     (0x00000000)
+#define CFG_PRB_REQ_IE_BIT_MAP6_MAX     (0xFFFFFFFF)
+#define CFG_PRB_REQ_IE_BIT_MAP6_DEFAULT (0x00000000)
+
+#define CFG_PRB_REQ_IE_BIT_MAP7_NAME    "g_probe_req_ie_bitmap_7"
+#define CFG_PRB_REQ_IE_BIT_MAP7_MIN     (0x00000000)
+#define CFG_PRB_REQ_IE_BIT_MAP7_MAX     (0xFFFFFFFF)
+#define CFG_PRB_REQ_IE_BIT_MAP7_DEFAULT (0x00000000)
+
+/*
+ * For vendor specific IE, Probe Req OUI types and sub types which are
+ * to be white listed are specifed in gProbeReqOUIs in the following
+ * example format - gProbeReqOUIs=AABBCCDD EEFF1122
+ */
+#define CFG_PROBE_REQ_OUI_NAME    "gProbeReqOUIs"
+#define CFG_PROBE_REQ_OUI_DEFAULT ""
+
+/*
+ * <ini>
+ * arp_ac_category - ARP access category
+ * @Min: 0
+ * @Max: 3
+ * @Default: 3
+ *
+ * Firmware by default categorizes ARP packets with VOICE TID.
+ * This ini shall be used to override the default configuration.
+ * Access category enums are referenced in ieee80211_common.h
+ * WME_AC_BE = 0 (Best effort)
+ * WME_AC_BK = 1 (Background)
+ * WME_AC_VI = 2 (Video)
+ * WME_AC_VO = 3 (Voice)
+ *
+ * Related: none
+ *
+ * Usage: Internal/External
+ *
+ * </ini>
+ */
+#define CFG_ARP_AC_CATEGORY                "arp_ac_category"
+#define CFG_ARP_AC_CATEGORY_MIN            (0)
+#define CFG_ARP_AC_CATEGORY_MAX            (3)
+#define CFG_ARP_AC_CATEGORY_DEFAULT        (3)
+
+
 /*---------------------------------------------------------------------------
   Type declarations
   -------------------------------------------------------------------------*/
@@ -3986,8 +4142,6 @@ struct hdd_config {
    v_U32_t        nInitialDwellTime;     //in units of milliseconds
    bool           initial_scan_no_dfs_chnl;
 
-   v_U32_t        nActiveMinChnTimeBtc;     //in units of milliseconds
-   v_U32_t        nActiveMaxChnTimeBtc;     //in units of milliseconds
 #ifdef WLAN_AP_STA_CONCURRENCY
    v_U32_t        nPassiveMinChnTimeConc;    //in units of milliseconds
    v_U32_t        nPassiveMaxChnTimeConc;    //in units of milliseconds
@@ -4286,7 +4440,6 @@ struct hdd_config {
    char                        listOfNonDfsCountryCode[128];
    v_BOOL_t                    enableSSR;
    v_U32_t                     cfgMaxMediumTime;
-   v_BOOL_t                    enableVhtFor24GHzBand;
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
    /* Flag indicating whether legacy fast roam during concurrency is enabled in cfg.ini or not */
    v_BOOL_t                    bFastRoamInConIniFeatureEnabled;
@@ -4326,6 +4479,8 @@ struct hdd_config {
 #ifdef WLAN_FEATURE_11AC
    v_U8_t                      fVhtAmpduLenExponent;
    v_U32_t                     vhtMpduLen;
+   bool                        enableVhtFor24GHzBand;
+   bool                        enable_vendor_vht_for_24ghz_band;
 #endif
 #ifdef IPA_OFFLOAD
    v_U32_t                     IpaConfig;
@@ -4623,6 +4778,32 @@ struct hdd_config {
    bool                        sap_restrt_ch_avoid;
    uint32_t                    rx_wakelock_timeout;
    bool                        active_mode_offload;
+   uint32_t                    max_sched_scan_plan_interval;
+   uint32_t                    max_sched_scan_plan_iterations;
+   /* 5G preference parameters for boosting RSSI */
+   bool                        enable_5g_band_pref;
+   int8_t                      rssi_boost_threshold_5g;
+   uint8_t                     rssi_boost_factor_5g;
+   uint8_t                     max_rssi_boost_5g;
+  /* 5G preference parameters for dropping RSSI*/
+   int8_t                      rssi_penalize_threshold_5g;
+   uint8_t                     rssi_penalize_factor_5g;
+   uint8_t                     max_rssi_penalize_5g;
+
+   bool probe_req_ie_whitelist;
+   /* probe request bit map ies */
+   uint32_t probe_req_ie_bitmap_0;
+   uint32_t probe_req_ie_bitmap_1;
+   uint32_t probe_req_ie_bitmap_2;
+   uint32_t probe_req_ie_bitmap_3;
+   uint32_t probe_req_ie_bitmap_4;
+   uint32_t probe_req_ie_bitmap_5;
+   uint32_t probe_req_ie_bitmap_6;
+   uint32_t probe_req_ie_bitmap_7;
+
+   /* Probe Request multiple vendor OUIs */
+   uint8_t probe_req_ouis[MAX_PRB_REQ_VENDOR_OUI_INI_LEN];
+   uint32_t                    arp_ac_category;
 };
 
 typedef struct hdd_config hdd_config_t;
@@ -4740,6 +4921,9 @@ static __inline unsigned long utilMin( unsigned long a, unsigned long b )
   Function declarations and documentation
   -------------------------------------------------------------------------*/
 VOS_STATUS hdd_parse_config_ini(hdd_context_t *pHddCtx);
+uint32_t hdd_validate_prb_req_ie_bitmap(hdd_context_t* pHddCtx);
+VOS_STATUS hdd_parse_probe_req_ouis(hdd_context_t* pHddCtx);
+void hdd_free_probe_req_ouis(hdd_context_t* pHddCtx);
 VOS_STATUS hdd_update_mac_config(hdd_context_t *pHddCtx);
 VOS_STATUS hdd_set_sme_config( hdd_context_t *pHddCtx );
 VOS_STATUS hdd_set_sme_chan_list(hdd_context_t *hdd_ctx);

@@ -157,71 +157,100 @@ __limBackgroundScanInitiate(tpAniSirGlobal pMac)
 
 #endif // BACKGROUND_SCAN_ENABLED
 
-// determine if a fresh scan request must be issued or not
-/*
-* PE will do fresh scan, if all of the active sessions are in good state (Link Est or BSS Started)
-* If one of the sessions is not in one of the above states, then PE does not do fresh scan
-* If no session exists (scanning very first time), then PE will always do fresh scan if SME
-* asks it to do that.
-*/
-static tANI_U8
-__limFreshScanReqd(tpAniSirGlobal pMac, tANI_U8 returnFreshResults)
+/**
+ * __limFreshScanReqd() - determine if fresh scan request must be issued or not
+ * @mac_ctx - mac global context
+ * @return_fresh_results - fresh scan requested
+ *
+ * PE will do fresh scan, if all of the active sessions are in good state
+ * (Link Est or BSS Started). If one of the sessions is not in one of the these
+ * states, then PE does not do fresh scan. If no session exists (scanning very
+ * first time), then PE will always do fresh scan if SME asks it to do that.
+ */
+static uint8_t __limFreshScanReqd(tpAniSirGlobal mac_ctx,
+				  uint8_t return_fresh_results)
 {
+	int i;
+	uint8_t valid_state = true;
 
-    tANI_U8 validState = TRUE;
-    int i;
+	limLog(mac_ctx, LOG1, FL("gLimSmeState: %d, return_fresh_results 0x%x"),
+		mac_ctx->lim.gLimSmeState, return_fresh_results);
 
-    limLog(pMac, LOG1, FL("gLimSmeState: %d, returnFreshResults 0x%x"),
-        pMac->lim.gLimSmeState, returnFreshResults);
-    if(pMac->lim.gLimSmeState != eLIM_SME_IDLE_STATE)
-    {
-        limLog(pMac, LOG1, FL("return FALSE"));
-        return FALSE;
-    }
-    for(i =0; i < pMac->lim.maxBssId; i++)
-    {
+	if (mac_ctx->lim.gLimSmeState != eLIM_SME_IDLE_STATE) {
+		limLog(mac_ctx, LOG1, FL("return false, global_sme_state: %d"),
+			mac_ctx->lim.gLimSmeState);
+		return false;
+	}
 
-        if(pMac->lim.gpSession[i].valid == TRUE)
-        {
-            limLog(pMac, LOG1,
-               FL("session %d, bsstype %d, limSystemRole %d, limSmeState %d"),
-               i,
-               pMac->lim.gpSession[i].bssType,
-               pMac->lim.gpSession[i].limSystemRole,
-               pMac->lim.gpSession[i].limSmeState);
-            if(!( ( (  (pMac->lim.gpSession[i].bssType == eSIR_INFRASTRUCTURE_MODE) ||
-                        (pMac->lim.gpSession[i].limSystemRole == eLIM_BT_AMP_STA_ROLE))&&
-                       (pMac->lim.gpSession[i].limSmeState == eLIM_SME_LINK_EST_STATE) )||
+	for (i = 0; i < mac_ctx->lim.maxBssId; i++) {
+		if (mac_ctx->lim.gpSession[i].valid == false)
+			continue;
 
-                  (    ( (pMac->lim.gpSession[i].bssType == eSIR_IBSS_MODE)||
-                           (pMac->lim.gpSession[i].limSystemRole == eLIM_BT_AMP_AP_ROLE)||
-                           (pMac->lim.gpSession[i].limSystemRole == eLIM_BT_AMP_STA_ROLE) )&&
-                       (pMac->lim.gpSession[i].limSmeState == eLIM_SME_NORMAL_STATE) )
-               ||  ( ( ( (pMac->lim.gpSession[i].bssType == eSIR_INFRA_AP_MODE)
-                      && ( pMac->lim.gpSession[i].pePersona == VOS_P2P_GO_MODE) )
-                    || (pMac->lim.gpSession[i].limSystemRole == eLIM_AP_ROLE) )
-                  && (pMac->lim.gpSession[i].limSmeState == eLIM_SME_NORMAL_STATE) )
-             ))
-                {
-                validState = FALSE;
-                break;
-              }
+		limLog(mac_ctx, LOG1,
+			FL("session %d, bsstype %d, limSystemRole %d, limSmeState %d"),
+			i, mac_ctx->lim.gpSession[i].bssType,
+			mac_ctx->lim.gpSession[i].limSystemRole,
+			mac_ctx->lim.gpSession[i].limSmeState);
 
-        }
-    }
+		if (mac_ctx->lim.gpSession[i].bssType == eSIR_NDI_MODE)
+			continue;
 
+		if (mac_ctx->lim.gpSession[i].bssType ==
+					eSIR_INFRASTRUCTURE_MODE
+				&& mac_ctx->lim.gpSession[i].limSmeState ==
+					eLIM_SME_LINK_EST_STATE)
+			continue;
 
-    if((validState) &&
-       (returnFreshResults & SIR_BG_SCAN_RETURN_FRESH_RESULTS)) {
-        limLog(pMac, LOG1, FL("validState: %d, return TRUE"), validState);
-        return TRUE;
-    } else {
-        limLog(pMac, LOG1, FL("validState: %d, return FALSE"), validState);
-        return FALSE;
-    }
+		if (mac_ctx->lim.gpSession[i].limSystemRole ==
+					eLIM_BT_AMP_STA_ROLE
+				&& mac_ctx->lim.gpSession[i].limSmeState ==
+					eLIM_SME_LINK_EST_STATE)
+			continue;
+
+		if (mac_ctx->lim.gpSession[i].bssType == eSIR_IBSS_MODE
+				&& mac_ctx->lim.gpSession[i].limSmeState ==
+					eLIM_SME_NORMAL_STATE)
+			continue;
+
+		if (mac_ctx->lim.gpSession[i].limSystemRole ==
+					eLIM_BT_AMP_AP_ROLE
+				&& mac_ctx->lim.gpSession[i].limSmeState ==
+					eLIM_SME_NORMAL_STATE)
+			continue;
+
+		if (mac_ctx->lim.gpSession[i].limSystemRole ==
+					eLIM_BT_AMP_STA_ROLE
+				&& mac_ctx->lim.gpSession[i].limSmeState ==
+					eLIM_SME_NORMAL_STATE)
+			continue;
+
+		if (mac_ctx->lim.gpSession[i].bssType == eSIR_INFRA_AP_MODE
+				&& mac_ctx->lim.gpSession[i].pePersona ==
+					VOS_P2P_GO_MODE
+				&& mac_ctx->lim.gpSession[i].limSmeState ==
+					eLIM_SME_NORMAL_STATE)
+			continue;
+
+		if (mac_ctx->lim.gpSession[i].limSystemRole == eLIM_AP_ROLE
+				&& mac_ctx->lim.gpSession[i].limSmeState ==
+					eLIM_SME_NORMAL_STATE)
+			continue;
+
+		valid_state = false;
+		break;
+	}
+
+	if (valid_state && (return_fresh_results
+				& SIR_BG_SCAN_RETURN_FRESH_RESULTS)) {
+		limLog(mac_ctx, LOG1, FL("valid_state: %d, return true"),
+			valid_state);
+		return true;
+	} else {
+		limLog(mac_ctx, LOG1, FL("valid_state: %d, return false"),
+			valid_state);
+		return false;
+	}
 }
-
-
 
 /**
  * __limIsSmeAssocCnfValid()
@@ -743,6 +772,8 @@ __limHandleSmeStartBssRequest(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
                  psessionEntry->ssidHidden = pSmeStartBssReq->ssidHidden;
                  psessionEntry->wps_state = pSmeStartBssReq->wps_state;
                  psessionEntry->sap_dot11mc = pSmeStartBssReq->sap_dot11mc;
+                 psessionEntry->vendor_vht_for_24ghz_sap =
+                     pSmeStartBssReq->vendor_vht_for_24ghz_sap;
                  limGetShortSlotFromPhyMode(pMac, psessionEntry,
                                             psessionEntry->gLimPhyMode,
                                             &psessionEntry->shortSlotTimeSupported);
@@ -1193,7 +1224,7 @@ static eHalStatus limSendHalStartScanOffloadReq(tpAniSirGlobal pMac,
     /* The tSirScanOffloadReq will reserve the space for first channel,
        so allocate the memory for (numChannels - 1) and uIEFieldLen */
     len = sizeof(tSirScanOffloadReq) + (pScanReq->channelList.numChannels - 1) +
-        pScanReq->uIEFieldLen;
+        pScanReq->uIEFieldLen + pScanReq->oui_field_len;
 
     if (!pMac->per_band_chainmask_supp) {
         if (IS_DOT11_MODE_HT(pScanReq->dot11mode)) {
@@ -1287,7 +1318,8 @@ static eHalStatus limSendHalStartScanOffloadReq(tpAniSirGlobal pMac,
 
     pScanOffloadReq->uIEFieldLen = pScanReq->uIEFieldLen;
     pScanOffloadReq->uIEFieldOffset = len - addn_ie_len -
-                                      pScanOffloadReq->uIEFieldLen;
+                                      pScanOffloadReq->uIEFieldLen -
+                                      pScanReq->oui_field_len;
     vos_mem_copy(
             (tANI_U8 *) pScanOffloadReq + pScanOffloadReq->uIEFieldOffset,
             (tANI_U8 *) pScanReq + pScanReq->uIEFieldOffset,
@@ -1321,6 +1353,32 @@ static eHalStatus limSendHalStartScanOffloadReq(tpAniSirGlobal pMac,
             pScanOffloadReq->uIEFieldLen += vht_cap_len;
         }
 #endif /* WLAN_FEATURE_11AC */
+    }
+
+    pScanOffloadReq->enable_scan_randomization =
+                                           pScanReq->enable_scan_randomization;
+    if (pScanOffloadReq->enable_scan_randomization) {
+        vos_mem_copy(pScanOffloadReq->mac_addr, pScanReq->mac_addr,
+                     VOS_MAC_ADDR_SIZE);
+        vos_mem_copy(pScanOffloadReq->mac_addr_mask, pScanReq->mac_addr_mask,
+                     VOS_MAC_ADDR_SIZE);
+    }
+
+    pScanOffloadReq->oui_field_len = pScanReq->oui_field_len;
+    pScanOffloadReq->num_vendor_oui = pScanReq->num_vendor_oui;
+    pScanOffloadReq->ie_whitelist = pScanReq->ie_whitelist;
+    if (pScanOffloadReq->ie_whitelist)
+        vos_mem_copy(pScanOffloadReq->probe_req_ie_bitmap,
+                     pScanReq->probe_req_ie_bitmap,
+                     PROBE_REQ_BITMAP_LEN * sizeof(uint32_t));
+    pScanOffloadReq->oui_field_offset = sizeof(tSirScanOffloadReq) +
+                               (pScanOffloadReq->channelList.numChannels - 1) +
+                               pScanOffloadReq->uIEFieldLen;
+    if (pScanOffloadReq->num_vendor_oui != 0) {
+        vos_mem_copy(
+            (tANI_U8 *) pScanOffloadReq + pScanOffloadReq->oui_field_offset,
+            (uint8_t *) pScanReq + pScanReq->oui_field_offset,
+            pScanReq->oui_field_len);
     }
 
     rc = wdaPostCtrlMsg(pMac, &msg);
@@ -6283,6 +6341,7 @@ limProcessSmeReqMessages(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
             break;
         case eWNI_SME_NDP_INITIATOR_REQ:
         case eWNI_SME_NDP_RESPONDER_REQ:
+        case eWNI_SME_NDP_END_REQ:
             lim_handle_ndp_request_message(pMac, pMsg);
             break;
         case eWNI_SME_REGISTER_P2P_ACK_CB:

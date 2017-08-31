@@ -304,8 +304,6 @@ void close_ch_worker(struct work_struct *work)
 	else
 		ss_info->link_state_handle = link_state_handle;
 
-	BUG_ON(!ss_info->cb_data);
-	kfree(ss_info->cb_data);
 	kfree(close_work);
 }
 
@@ -769,7 +767,7 @@ static int glink_ssr_probe(struct platform_device *pdev)
 	struct device_node *phandle_node;
 	struct restart_notifier_block *nb;
 	struct subsys_info *ss_info;
-	struct subsys_info_leaf *ss_info_leaf;
+	struct subsys_info_leaf *ss_info_leaf = NULL;
 	struct glink_link_info *link_info;
 	char *key;
 	const char *edge;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -270,6 +270,10 @@ int __hdd_softap_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
    while (skb) {
        skb_next = skb->next;
+       /* memset skb control block */
+       vos_mem_zero(skb->cb, sizeof(skb->cb));
+       wlan_hdd_classify_pkt(skb);
+
        pDestMacAddress = (v_MACADDR_t*)skb->data;
 
        if (vos_is_macaddr_broadcast( pDestMacAddress ) ||
@@ -355,9 +359,6 @@ int __hdd_softap_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
        ac = hdd_QdiscAcToTlAC[skb->queue_mapping];
        ++pAdapter->hdd_stats.hddTxRxStats.txXmitClassifiedAC[ac];
 
-       adf_dp_trace_log_pkt(pAdapter->sessionId, skb,
-                          WIFI_EVENT_DRIVER_EAPOL_FRAME_TRANSMIT_REQUESTED);
-
 #ifdef QCA_PKT_PROTO_TRACE
        if ((hddCtxt->cfg_ini->gEnableDebugLog & VOS_PKT_TRAC_TYPE_EAPOL) ||
            (hddCtxt->cfg_ini->gEnableDebugLog & VOS_PKT_TRAC_TYPE_DHCP))
@@ -397,19 +398,22 @@ int __hdd_softap_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
            list_tail->next = skb;
            list_tail = list_tail->next;
        }
-       vos_mem_zero(skb->cb, sizeof(skb->cb));
+
+       adf_dp_trace_log_pkt(pAdapter->sessionId, skb, ADF_TX);
        NBUF_SET_PACKET_TRACK(skb, NBUF_TX_PKT_DATA_TRACK);
        NBUF_UPDATE_TX_PKT_COUNT(skb, NBUF_TX_PKT_HDD);
 
-       adf_dp_trace_set_track(skb);
-       DPTRACE(adf_dp_trace(skb, ADF_DP_TRACE_HDD_PACKET_PTR_RECORD,
-                  (uint8_t *)&skb->data, sizeof(skb->data)));
-       DPTRACE(adf_dp_trace(skb, ADF_DP_TRACE_HDD_PACKET_RECORD,
-                  (uint8_t *)skb->data, skb->len));
-       if (skb->len > ADF_DP_TRACE_RECORD_SIZE)
-            DPTRACE(adf_dp_trace(skb, ADF_DP_TRACE_HDD_PACKET_RECORD,
-                  (uint8_t *)&skb->data[ADF_DP_TRACE_RECORD_SIZE],
-                  (skb->len - ADF_DP_TRACE_RECORD_SIZE)));
+       adf_dp_trace_set_track(skb, ADF_TX);
+       DPTRACE(adf_dp_trace(skb, ADF_DP_TRACE_HDD_TX_PACKET_PTR_RECORD,
+                  (uint8_t *)&skb->data, sizeof(skb->data), ADF_TX));
+       DPTRACE(adf_dp_trace(skb, ADF_DP_TRACE_HDD_TX_PACKET_RECORD,
+                  (uint8_t *)skb->data, adf_nbuf_len(skb), ADF_TX));
+
+       if (adf_nbuf_len(skb) > ADF_DP_TRACE_RECORD_SIZE)
+            DPTRACE(adf_dp_trace(skb, ADF_DP_TRACE_HDD_TX_PACKET_RECORD,
+                    (uint8_t *)&skb->data[ADF_DP_TRACE_RECORD_SIZE],
+                    (adf_nbuf_len(skb) - ADF_DP_TRACE_RECORD_SIZE),
+                    ADF_TX));
 
        skb = skb_next;
        continue;
@@ -479,7 +483,7 @@ static void __hdd_softap_tx_timeout(struct net_device *dev)
    int i = 0;
 
    DPTRACE(adf_dp_trace(NULL, ADF_DP_TRACE_HDD_SOFTAP_TX_TIMEOUT,
-                        NULL, 0));
+                        NULL, 0, ADF_TX));
 
    hdd_ctx = WLAN_HDD_GET_CTX(adapter);
    if (hdd_ctx->isLogpInProgress) {
@@ -846,8 +850,21 @@ VOS_STATUS hdd_softap_rx_packet_cbk(v_VOID_t *vosContext,
       ++pAdapter->stats.rx_packets;
       pAdapter->stats.rx_bytes += skb->len;
 
-      adf_dp_trace_log_pkt(pAdapter->sessionId, skb,
-          WIFI_EVENT_DRIVER_EAPOL_FRAME_RECEIVED);
+      DPTRACE(adf_dp_trace(skb,
+              ADF_DP_TRACE_RX_HDD_PACKET_PTR_RECORD,
+              adf_nbuf_data_addr(skb),
+              sizeof(adf_nbuf_data(skb)), ADF_RX));
+      DPTRACE(adf_dp_trace(skb,
+              ADF_DP_TRACE_HDD_RX_PACKET_RECORD,
+              (uint8_t *)skb->data, adf_nbuf_len(skb), ADF_RX));
+
+      if (adf_nbuf_len(skb) > ADF_DP_TRACE_RECORD_SIZE)
+          DPTRACE(adf_dp_trace(skb,
+                  ADF_DP_TRACE_HDD_RX_PACKET_RECORD,
+                  (uint8_t *)&skb->data[ADF_DP_TRACE_RECORD_SIZE],
+                  (adf_nbuf_len(skb) - ADF_DP_TRACE_RECORD_SIZE),
+                  ADF_RX));
+
 #ifdef QCA_PKT_PROTO_TRACE
       if ((pHddCtx->cfg_ini->gEnableDebugLog & VOS_PKT_TRAC_TYPE_EAPOL) ||
           (pHddCtx->cfg_ini->gEnableDebugLog & VOS_PKT_TRAC_TYPE_DHCP)) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -433,6 +433,8 @@ ol_txrx_pdev_attach(
     if (ol_cfg_is_high_latency(ctrl_pdev)) {
         ol_tx_target_credit_init(pdev, desc_pool_size);
     }
+
+    ol_tx_desc_dup_detect_init(pdev, desc_pool_size);
 
     pdev->htt_pdev = htt_attach(
         pdev, ctrl_pdev, htc_pdev, osdev, desc_pool_size);
@@ -988,6 +990,8 @@ ol_txrx_pdev_detach(ol_txrx_pdev_handle pdev, int force)
 #endif /* IPA_UC_OFFLOAD */
 
     htt_detach(pdev->htt_pdev);
+
+    ol_tx_desc_dup_detect_deinit(pdev);
 
     ol_txrx_peer_find_detach(pdev);
 
@@ -1723,7 +1727,7 @@ ol_txrx_peer_unref_delete(ol_txrx_peer_handle peer)
     if (adf_os_atomic_dec_and_test(&peer->ref_cnt)) {
         u_int16_t peer_id;
 
-        TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
+        TXRX_PRINT(TXRX_PRINT_LEVEL_INFO1,
             "Deleting peer %p (%02x:%02x:%02x:%02x:%02x:%02x)\n",
             peer,
             peer->mac_addr.raw[0], peer->mac_addr.raw[1],
@@ -1836,7 +1840,7 @@ ol_txrx_peer_detach(ol_txrx_peer_handle peer)
     /* debug print to dump rx reorder state */
     //htt_rx_reorder_log_print(vdev->pdev->htt_pdev);
 
-    TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
+    TXRX_PRINT(TXRX_PRINT_LEVEL_INFO1,
         "%s:peer %p (%02x:%02x:%02x:%02x:%02x:%02x)\n",
           __func__, peer,
           peer->mac_addr.raw[0], peer->mac_addr.raw[1],
@@ -1897,9 +1901,58 @@ void ol_txrx_dump_tx_desc(ol_txrx_pdev_handle pdev_handle)
 		total = ol_cfg_target_tx_credit(pdev->ctrl_pdev);
 
 	TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-		"Total tx credits %d free_credits %d",
+		"Total tx credits %d free_credits %d\n",
 		total, pdev->tx_desc.num_free);
 
+	return;
+}
+
+static void ol_txrx_dump_tx_queue_paused_reason(ol_txrx_pdev_handle pdev_handle)
+{
+	struct ol_txrx_pdev_t *pdev = (ol_txrx_pdev_handle)pdev_handle;
+	struct ol_txrx_vdev_t *vdev;
+
+	TAILQ_FOREACH(vdev, &pdev->vdev_list, vdev_list_elem) {
+		if (vdev->ll_pause.paused_reason & OL_TXQ_PAUSE_REASON_FW)
+		    TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
+                        "%s vdev_id %d vdev tx queue paused reason %d",
+                        __func__, vdev->vdev_id, vdev->ll_pause.paused_reason);
+	}
+	return;
+}
+
+static void ol_txrx_dump_tx_queue_length(ol_txrx_pdev_handle pdev_handle)
+{
+	struct ol_txrx_pdev_t *pdev = (ol_txrx_pdev_handle)pdev_handle;
+	struct ol_txrx_vdev_t *vdev;
+
+	TAILQ_FOREACH(vdev, &pdev->vdev_list, vdev_list_elem) {
+		if (vdev->ll_pause.txq.depth)
+                    TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
+                        "%s vdev_id %d vdev tx queue depth %d",
+                        __func__, vdev->vdev_id, vdev->ll_pause.txq.depth);
+	}
+	return;
+}
+
+void ol_txrx_dump_tx_queue_stats(ol_txrx_pdev_handle pdev_handle)
+{
+	uint16_t size = (pdev_handle->tx_desc.pool_size >> 3) +
+					((pdev_handle->tx_desc.pool_size & 0x7) ? 1 : 0);
+
+	TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
+		"%s: Dump TX LL Queue Stats:\n",
+		__func__);
+	TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
+		"%s vdev tx ll queues status: %d num of frames pending: %d\n",
+		__func__, ol_txrx_get_queue_status(pdev_handle), ol_txrx_get_tx_pending(pdev_handle));
+	ol_txrx_dump_tx_queue_paused_reason(pdev_handle);
+	ol_txrx_dump_tx_queue_length(pdev_handle);
+	TXRX_PRINT(TXRX_PRINT_LEVEL_ERR, "%s: dump freelist bitmap\n",
+				__func__);
+        /* Dump the tx descriptor dup-detection bitmap array (33 DWORDS)*/
+	vos_trace_hex_dump(VOS_MODULE_ID_TXRX, VOS_TRACE_LEVEL_ERROR,
+		(void *)pdev_handle->tx_desc.free_list_bitmap, size);
 	return;
 }
 

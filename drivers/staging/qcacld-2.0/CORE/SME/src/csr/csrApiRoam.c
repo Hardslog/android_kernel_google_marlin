@@ -1101,6 +1101,18 @@ void csrAbortCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand, tANI_BOOLEAN fStop
             csrReleaseCommandRemoveKey( pMac, pCommand );
             break;
 
+        case eSmeCommandNdpInitiatorRequest:
+            csr_release_ndp_initiator_req(pMac, pCommand);
+            break;
+
+        case eSmeCommandNdpResponderRequest:
+            csr_release_ndp_responder_req(pMac, pCommand);
+            break;
+
+        case eSmeCommandNdpDataEndInitiatorRequest:
+            csr_release_ndp_data_end_req(pMac, pCommand);
+            break;
+
     default:
             smsLog( pMac, LOGW, " CSR abort standard command %d", pCommand->command );
             csrReleaseCommand( pMac, pCommand );
@@ -1200,8 +1212,6 @@ static void initConfigParam(tpAniSirGlobal pMac)
     pMac->roam.configParam.nActiveMinChnTime = CSR_ACTIVE_MIN_CHANNEL_TIME;
     pMac->roam.configParam.nPassiveMaxChnTime = CSR_PASSIVE_MAX_CHANNEL_TIME;
     pMac->roam.configParam.nPassiveMinChnTime = CSR_PASSIVE_MIN_CHANNEL_TIME;
-    pMac->roam.configParam.nActiveMaxChnTimeBtc = CSR_ACTIVE_MAX_CHANNEL_TIME_BTC;
-    pMac->roam.configParam.nActiveMinChnTimeBtc = CSR_ACTIVE_MIN_CHANNEL_TIME_BTC;
     pMac->roam.configParam.disableAggWithBtc = eANI_BOOLEAN_TRUE;
 #ifdef WLAN_AP_STA_CONCURRENCY
     pMac->roam.configParam.nActiveMaxChnTimeConc = CSR_ACTIVE_MAX_CHANNEL_TIME_CONC;
@@ -1806,14 +1816,6 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
             cfgSetInt(pMac, WNI_CFG_PASSIVE_MINIMUM_CHANNEL_TIME,
                       pParam->nPassiveMinChnTime);
         }
-        if (pParam->nActiveMaxChnTimeBtc)
-        {
-            pMac->roam.configParam.nActiveMaxChnTimeBtc = pParam->nActiveMaxChnTimeBtc;
-        }
-        if (pParam->nActiveMinChnTimeBtc)
-        {
-            pMac->roam.configParam.nActiveMinChnTimeBtc = pParam->nActiveMinChnTimeBtc;
-        }
 #ifdef WLAN_AP_STA_CONCURRENCY
         if (pParam->nActiveMaxChnTimeConc)
         {
@@ -2029,6 +2031,8 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
         pMac->roam.configParam.ignore_peer_ht_opmode =
                                     pParam->ignore_peer_ht_opmode;
         pMac->roam.configParam.obssEnabled = pParam->obssEnabled;
+        pMac->roam.configParam.vendor_vht_for_24ghz_sap =
+                               pParam->vendor_vht_for_24ghz_sap;
         pMac->roam.configParam.conc_custom_rule1 =
                                pParam->conc_custom_rule1;
         pMac->roam.configParam.conc_custom_rule2 =
@@ -2097,8 +2101,6 @@ eHalStatus csrGetConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pParam)
         pParam->nActiveMinChnTime = pMac->roam.configParam.nActiveMinChnTime;
         pParam->nPassiveMaxChnTime = pMac->roam.configParam.nPassiveMaxChnTime;
         pParam->nPassiveMinChnTime = pMac->roam.configParam.nPassiveMinChnTime;
-        pParam->nActiveMaxChnTimeBtc = pMac->roam.configParam.nActiveMaxChnTimeBtc;
-        pParam->nActiveMinChnTimeBtc = pMac->roam.configParam.nActiveMinChnTimeBtc;
         pParam->disableAggWithBtc = pMac->roam.configParam.disableAggWithBtc;
 #ifdef WLAN_AP_STA_CONCURRENCY
         pParam->nActiveMaxChnTimeConc = pMac->roam.configParam.nActiveMaxChnTimeConc;
@@ -2224,6 +2226,9 @@ eHalStatus csrGetConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pParam)
         csrSetChannels(pMac, pParam);
 
         pParam->obssEnabled = pMac->roam.configParam.obssEnabled;
+
+        pParam->vendor_vht_for_24ghz_sap =
+           pMac->roam.configParam.vendor_vht_for_24ghz_sap;
 
         pParam->conc_custom_rule1 =
                      pMac->roam.configParam.conc_custom_rule1;
@@ -6204,6 +6209,8 @@ static tANI_BOOLEAN csrRoamProcessResults( tpAniSirGlobal pMac, tSmeCmd *pComman
             else
                 pSession->connectState = eCSR_ASSOC_STATE_TYPE_WDS_DISCONNECTED;
 
+            roamInfo.staId = (uint8_t)pSmeStartBssRsp->staId;
+
             if (CSR_IS_NDI(pProfile)) {
                 csrRoamStateChange(pMac, eCSR_ROAMING_STATE_JOINED, sessionId);
                 pSirBssDesc = &pSmeStartBssRsp->bssDescription;
@@ -6335,14 +6342,8 @@ static tANI_BOOLEAN csrRoamProcessResults( tpAniSirGlobal pMac, tSmeCmd *pComman
                 if (CSR_IS_NDI(pProfile)) {
                     csr_roam_update_ndp_return_params(pMac, Result,
                                         &roamStatus, &roamResult, &roamInfo);
-                    csr_roam_fill_roaminfo_ndp(pMac, &roamInfo, roamResult,
-                                        pSmeStartBssRsp->statusCode,
-                                        0, 0);
                 }
 
-                //Only tell upper layer is we start the BSS because Vista doesn't like multiple connection
-                //indications. If we don't start the BSS ourself, handler of eSIR_SME_JOINED_NEW_BSS will
-                //trigger the connection start indication in Vista
                 roamInfo.statusCode = pSession->joinFailStatusCode.statusCode;
                 roamInfo.reasonCode = pSession->joinFailStatusCode.reasonCode;
                 //We start the IBSS (didn't find any matched IBSS out there)
@@ -6428,9 +6429,6 @@ static tANI_BOOLEAN csrRoamProcessResults( tpAniSirGlobal pMac, tSmeCmd *pComman
             if (CSR_IS_NDI(pProfile)) {
                 csr_roam_update_ndp_return_params(pMac, Result,
                                         &roamStatus, &roamResult, &roamInfo);
-                csr_roam_fill_roaminfo_ndp(pMac, &roamInfo, roamResult,
-                    (pSmeStartBssRsp) ? pSmeStartBssRsp->statusCode :
-                     eHAL_STATUS_FAILURE, 0, 0);
             }
 
             if(Context)
@@ -13628,20 +13626,8 @@ static void csrPrepareJoinReassocReqBuffer( tpAniSirGlobal pMac,
         smsLog(pMac, LOGE, FL("can not find any valid channel"));
         *pBuf++ = 0;  //tSirSupChnl->numChnl
     }
-    //Check whether it is ok to enter UAPSD
-#ifndef WLAN_MDM_CODE_REDUCTION_OPT
-    if( btcIsReadyForUapsd(pMac) )
-#endif /* WLAN_MDM_CODE_REDUCTION_OPT*/
-    {
-       *pBuf++ = uapsdMask;
-    }
-#ifndef WLAN_MDM_CODE_REDUCTION_OPT
-    else
-    {
-        smsLog(pMac, LOGE, FL(" BTC doesn't allow UAPSD for uapsd_mask(0x%X)"), uapsdMask);
-        *pBuf++ = 0;
-    }
-#endif /* WLAN_MDM_CODE_REDUCTION_OPT*/
+
+    *pBuf++ = uapsdMask;
 
     // move the entire BssDescription into the join request.
     vos_mem_copy(pBuf, pBssDescription,
@@ -14269,6 +14255,14 @@ eHalStatus csrSendJoinReqMsg( tpAniSirGlobal pMac, tANI_U32 sessionId, tSirBssDe
 			txBFCsnValue = MIN(txBFCsnValue,
 					pIes->VHTCaps.numSoundingDim);
         }
+        else if (IS_BSS_VHT_CAPABLE(pIes->vendor2_ie.VHTCaps) &&
+                       pMac->roam.configParam.txBFEnable) {
+               txBFCsnValue = (tANI_U8)pMac->roam.configParam.txBFCsnValue;
+               if (pIes->vendor2_ie.VHTCaps.numSoundingDim)
+                       txBFCsnValue = MIN(txBFCsnValue,
+                                       pIes->vendor2_ie.VHTCaps.numSoundingDim);
+        }
+
         *pBuf = txBFCsnValue;
         pBuf++;
 
@@ -15314,6 +15308,7 @@ eHalStatus csrSendMBStartBssReqMsg( tpAniSirGlobal pMac, tANI_U32 sessionId, eCs
 
         *pBuf++ = (tANI_U8)pMac->roam.configParam.obssEnabled;
         *pBuf++ = (tANI_U8)pParam->sap_dot11mc;
+        *pBuf++ = (tANI_U8)pMac->roam.configParam.vendor_vht_for_24ghz_sap;
 
         msgLen = (tANI_U16)(sizeof(tANI_U32 ) + (pBuf - wTmpBuf)); //msg_header + msg
         pMsg->length = pal_cpu_to_be16(msgLen);
@@ -19146,7 +19141,7 @@ eHalStatus csrRoamReadTSF(tpAniSirGlobal pMac, tANI_U8 *pTimestamp,
                           tANI_U8 sessionId)
 {
     tCsrNeighborRoamBSSInfo handoffNode = {{0}};
-    tANI_U32                timer_diff = 0;
+    uint64_t                timer_diff = 0;
     tANI_U32                timeStamp[2];
     tpSirBssDescription     pBssDescription = NULL;
 
@@ -19155,10 +19150,11 @@ eHalStatus csrRoamReadTSF(tpAniSirGlobal pMac, tANI_U8 *pTimestamp,
         return eHAL_STATUS_FAILURE;
     }
     pBssDescription = handoffNode.pBssDescription;
-    // Get the time diff in milli seconds
-    timer_diff = vos_timer_get_system_time() - pBssDescription->scanSysTimeMsec;
-    // Convert msec to micro sec timer
-    timer_diff = (tANI_U32)(timer_diff * SYSTEM_TIME_MSEC_TO_USEC);
+    // Get the time diff in nano seconds
+    timer_diff = (vos_get_monotonic_boottime_ns() -
+                  pBssDescription->scansystimensec);
+    // Convert nano to micro sec timer
+    timer_diff = (timer_diff / SYSTEM_TIME_NSEC_TO_USEC);
     timeStamp[0] = pBssDescription->timeStamp[0];
     timeStamp[1] = pBssDescription->timeStamp[1];
     UpdateCCKMTSF(&(timeStamp[0]), &(timeStamp[1]), &timer_diff);

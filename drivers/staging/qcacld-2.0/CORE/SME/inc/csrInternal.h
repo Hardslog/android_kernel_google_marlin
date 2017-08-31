@@ -600,8 +600,6 @@ typedef struct tagCsrConfig
     tANI_U32  nInitialDwellTime;     //in units of milliseconds
     bool      initial_scan_no_dfs_chnl;
 
-    tANI_U32  nActiveMinChnTimeBtc;     //in units of milliseconds
-    tANI_U32  nActiveMaxChnTimeBtc;     //in units of milliseconds
     tANI_U8   disableAggWithBtc;
 #ifdef WLAN_AP_STA_CONCURRENCY
     tANI_U32  nPassiveMinChnTimeConc;    //in units of milliseconds
@@ -730,6 +728,7 @@ typedef struct tagCsrConfig
     uint32_t edca_vi_aifs;
     uint32_t edca_bk_aifs;
     uint32_t edca_be_aifs;
+    bool vendor_vht_for_24ghz_sap;
 }tCsrConfig;
 
 typedef struct tagCsrChannelPowerInfo
@@ -1293,6 +1292,7 @@ eHalStatus csrIsBTAMPAllowed( tpAniSirGlobal pMac, tANI_U32 chnId );
 tANI_BOOLEAN csrIsValidMcConcurrentSession(tpAniSirGlobal pMac, tANI_U32 sessionId,
                                                   tSirBssDescription *pBssDesc);
 tANI_BOOLEAN csrIsConnStateConnectedInfraAp( tpAniSirGlobal pMac, tANI_U32 sessionId );
+bool csr_is_ndi_started(tpAniSirGlobal mac_ctx, uint32_t session_id);
 /*----------------------------------------------------------------------------
   \fn csrRoamRegisterLinkQualityIndCallback
 

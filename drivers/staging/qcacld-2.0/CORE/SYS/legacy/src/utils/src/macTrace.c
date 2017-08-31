@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -498,7 +498,6 @@ tANI_U8* macTraceGetSmeMsgString(tANI_U16 smeMsg)
 	CASE_RETURN_STRING(eWNI_SME_ESE_ADJACENT_AP_REPORT);
 #endif
 	CASE_RETURN_STRING(eWNI_SME_REGISTER_MGMT_FRAME_REQ);
-	CASE_RETURN_STRING(eWNI_SME_COEX_IND);
 #ifdef FEATURE_WLAN_SCAN_PNO
 	CASE_RETURN_STRING(eWNI_SME_PREF_NETWORK_FOUND_IND);
 #endif // FEATURE_WLAN_SCAN_PNO
@@ -998,6 +997,8 @@ tANI_U8* macTraceGetWdaMsgString(tANI_U16 wdaMsg)
 	CASE_RETURN_STRING(WDA_MIB_STATS_REQ);
 	CASE_RETURN_STRING(WDA_SET_MIB_STATS_ENABLE);
 	CASE_RETURN_STRING(WDA_SET_MIB_STATS_DISABLE);
+	CASE_RETURN_STRING(WDA_ACTION_FRAME_RANDOM_MAC);
+	CASE_RETURN_STRING(SIR_HAL_POWER_DEBUG_STATS_REQ);
 	default:
 		return((tANI_U8*) "UNKNOWN");
 		break;
